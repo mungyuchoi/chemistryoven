@@ -173,6 +173,9 @@ class ChemistryClass {
     required this.id,
     required this.title,
     required this.subtitle,
+    required this.eventYear,
+    required this.eventMonth,
+    required this.eventDay,
     required this.dateText,
     required this.timeText,
     required this.place,
@@ -188,6 +191,9 @@ class ChemistryClass {
   final String id;
   final String title;
   final String subtitle;
+  final int eventYear;
+  final int eventMonth;
+  final int eventDay;
   final String dateText;
   final String timeText;
   final String place;
@@ -198,6 +204,8 @@ class ChemistryClass {
   final String priceText;
   final List<String> tags;
   final bool isOpen;
+
+  DateTime get eventDate => DateTime(eventYear, eventMonth, eventDay);
 }
 
 class DemoApplicant {

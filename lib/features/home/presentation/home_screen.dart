@@ -66,9 +66,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 _MonthPreview(
                   classes: classes,
-                  onTap: (demoClass) => demoClass.isOpen
-                      ? () => flow.applyForClass(demoClass.id)
-                      : null,
+                  onApply: (demoClass) => flow.applyForClass(demoClass.id),
                 ),
                 const SizedBox(height: 24),
                 const SectionTitle(
@@ -132,7 +130,13 @@ class _BrandImageBanner extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: AspectRatio(
         aspectRatio: 1.78,
-        child: Image.asset(AppAssets.chemistrySloganWood, fit: BoxFit.cover),
+        child: ColoredBox(
+          color: AppColors.wine,
+          child: Image.asset(
+            AppAssets.chemistrySloganWood,
+            fit: BoxFit.contain,
+          ),
+        ),
       ),
     );
   }
@@ -279,84 +283,552 @@ class _StatusPreview extends StatelessWidget {
   }
 }
 
-class _MonthPreview extends StatelessWidget {
-  const _MonthPreview({required this.classes, required this.onTap});
+class _MonthPreview extends StatefulWidget {
+  _MonthPreview({required this.classes, required this.onApply})
+    : assert(classes.isNotEmpty);
 
   final List<ChemistryClass> classes;
-  final VoidCallback? Function(ChemistryClass demoClass) onTap;
+  final ValueChanged<ChemistryClass> onApply;
+
+  @override
+  State<_MonthPreview> createState() => _MonthPreviewState();
+}
+
+class _MonthPreviewState extends State<_MonthPreview> {
+  late ChemistryClass _selectedClass;
+  late DateTime _visibleMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedClass = _initialClass(widget.classes);
+    _visibleMonth = _monthOf(_selectedClass);
+  }
+
+  @override
+  void didUpdateWidget(covariant _MonthPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selectedStillExists = widget.classes.any(
+      (demoClass) => demoClass.id == _selectedClass.id,
+    );
+    if (!selectedStillExists) {
+      _selectedClass = _initialClass(widget.classes);
+      _visibleMonth = _monthOf(_selectedClass);
+      return;
+    }
+    _selectedClass = widget.classes.firstWhere(
+      (demoClass) => demoClass.id == _selectedClass.id,
+    );
+  }
+
+  ChemistryClass _initialClass(List<ChemistryClass> classes) {
+    return classes.firstWhere(
+      (demoClass) => demoClass.isOpen,
+      orElse: () => classes.first,
+    );
+  }
+
+  List<DateTime> get _eventMonths {
+    final uniqueMonths = <String, DateTime>{};
+    for (final demoClass in widget.classes) {
+      final month = _monthOf(demoClass);
+      uniqueMonths['${month.year}-${month.month}'] = month;
+    }
+    return uniqueMonths.values.toList()..sort((a, b) => a.compareTo(b));
+  }
+
+  List<ChemistryClass> _classesInMonth(DateTime month) {
+    return widget.classes
+        .where((demoClass) => _isSameMonth(_monthOf(demoClass), month))
+        .toList()
+      ..sort((a, b) => a.eventDate.compareTo(b.eventDate));
+  }
+
+  int _visibleMonthIndex(List<DateTime> months) {
+    return months.indexWhere((month) => _isSameMonth(month, _visibleMonth));
+  }
+
+  void _changeMonth(int delta) {
+    final months = _eventMonths;
+    final currentIndex = _visibleMonthIndex(months);
+    if (currentIndex == -1) {
+      return;
+    }
+
+    final nextIndex = (currentIndex + delta)
+        .clamp(0, months.length - 1)
+        .toInt();
+    final nextMonth = months[nextIndex];
+    final nextMonthClasses = _classesInMonth(nextMonth);
+    setState(() {
+      _visibleMonth = nextMonth;
+      if (!nextMonthClasses.any(
+        (demoClass) => demoClass.id == _selectedClass.id,
+      )) {
+        _selectedClass = nextMonthClasses.first;
+      }
+    });
+  }
+
+  void _selectClass(ChemistryClass demoClass) {
+    setState(() {
+      _selectedClass = demoClass;
+      _visibleMonth = _monthOf(demoClass);
+    });
+  }
+
+  void _selectDay(int day) {
+    final dayClasses = _classesInMonth(
+      _visibleMonth,
+    ).where((demoClass) => demoClass.eventDay == day).toList();
+    if (dayClasses.isEmpty) {
+      return;
+    }
+    _selectClass(dayClasses.first);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final months = _eventMonths;
+    final monthIndex = _visibleMonthIndex(months);
+    final visibleClasses = _classesInMonth(_visibleMonth);
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 520;
-        final calendar = ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.asset(
-            AppAssets.chemistryCalendarPreview,
-            fit: BoxFit.cover,
-            height: wide ? 180 : 150,
-            width: wide ? 170 : double.infinity,
-          ),
+        final wide = constraints.maxWidth >= 640;
+        final calendar = _ClassCalendar(
+          classes: visibleClasses,
+          selectedClass: _selectedClass,
+          visibleMonth: _visibleMonth,
+          onPrevious: monthIndex > 0 ? () => _changeMonth(-1) : null,
+          onNext: monthIndex < months.length - 1 ? () => _changeMonth(1) : null,
+          onDaySelected: _selectDay,
         );
-        final list = Column(
-          children: [
-            for (final demoClass in classes) ...[
-              _ClassPreviewCard(demoClass: demoClass, onTap: onTap(demoClass)),
-              if (demoClass != classes.last) const SizedBox(height: 10),
-            ],
-          ],
+        final panel = _MonthClassPanel(
+          selectedClass: _selectedClass,
+          monthClasses: visibleClasses,
+          onSelect: _selectClass,
+          onApply: widget.onApply,
         );
 
-        return AppCard(
-          color: Colors.white,
-          child: wide
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    calendar,
-                    const SizedBox(width: 14),
-                    Expanded(child: list),
-                  ],
-                )
-              : Column(children: [calendar, const SizedBox(height: 14), list]),
-        );
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 330, child: calendar),
+              const SizedBox(width: 14),
+              Expanded(child: panel),
+            ],
+          );
+        }
+
+        return Column(children: [calendar, const SizedBox(height: 12), panel]);
       },
     );
   }
 }
 
-class _ClassPreviewCard extends StatelessWidget {
-  const _ClassPreviewCard({required this.demoClass, required this.onTap});
+class _ClassCalendar extends StatelessWidget {
+  const _ClassCalendar({
+    required this.classes,
+    required this.selectedClass,
+    required this.visibleMonth,
+    required this.onDaySelected,
+    this.onPrevious,
+    this.onNext,
+  });
 
-  final ChemistryClass demoClass;
+  final List<ChemistryClass> classes;
+  final ChemistryClass selectedClass;
+  final DateTime visibleMonth;
+  final ValueChanged<int> onDaySelected;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final cells = _calendarCells(visibleMonth);
+    final rowCount = cells.length ~/ 7;
+    final classesByDay = <int, List<ChemistryClass>>{};
+    for (final demoClass in classes) {
+      classesByDay.putIfAbsent(demoClass.eventDay, () => []).add(demoClass);
+    }
+
+    return AppCard(
+      color: AppColors.ivory,
+      borderColor: AppColors.butter,
+      child: Stack(
+        children: [
+          Positioned(
+            top: 12,
+            right: 46,
+            child: Icon(
+              Icons.favorite,
+              size: 18,
+              color: AppColors.rose.withValues(alpha: 0.72),
+            ),
+          ),
+          Positioned(
+            top: 70,
+            left: 10,
+            child: Icon(
+              Icons.auto_awesome,
+              size: 16,
+              color: AppColors.caramel.withValues(alpha: 0.52),
+            ),
+          ),
+          Positioned(
+            right: 12,
+            bottom: 18,
+            child: Icon(
+              Icons.auto_awesome,
+              size: 14,
+              color: AppColors.caramel.withValues(alpha: 0.55),
+            ),
+          ),
+          Column(
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: onPrevious,
+                    icon: const Icon(Icons.chevron_left),
+                    tooltip: '이전 달',
+                  ),
+                  Expanded(
+                    child: Text(
+                      '${visibleMonth.month}월 ${visibleMonth.year}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onNext,
+                    icon: const Icon(Icons.chevron_right),
+                    tooltip: '다음 달',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const _CalendarWeekHeader(),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.cream.withValues(alpha: 0.86),
+                    border: Border.all(
+                      color: AppColors.caramel.withValues(alpha: 0.54),
+                    ),
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: 7 / rowCount,
+                    child: GridView.builder(
+                      padding: EdgeInsets.zero,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 7,
+                          ),
+                      itemCount: cells.length,
+                      itemBuilder: (context, index) {
+                        final day = cells[index];
+                        final dayClasses = day == null
+                            ? const <ChemistryClass>[]
+                            : classesByDay[day] ?? const <ChemistryClass>[];
+                        return _CalendarDayCell(
+                          day: day,
+                          classes: dayClasses,
+                          selected: dayClasses.any(
+                            (demoClass) => demoClass.id == selectedClass.id,
+                          ),
+                          onTap: dayClasses.isEmpty || day == null
+                              ? null
+                              : () => onDaySelected(day),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarWeekHeader extends StatelessWidget {
+  const _CalendarWeekHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    return Row(
+      children: [
+        for (final weekday in weekdays)
+          Expanded(
+            child: Text(
+              weekday,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.wine,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CalendarDayCell extends StatelessWidget {
+  const _CalendarDayCell({
+    required this.day,
+    required this.classes,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int? day;
+  final List<ChemistryClass> classes;
+  final bool selected;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final hasClass = classes.isNotEmpty;
+    final hasOpenClass = classes.any((demoClass) => demoClass.isOpen);
+    final textStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: selected
+          ? Colors.white
+          : day == null
+          ? Colors.transparent
+          : AppColors.wine,
+      fontWeight: FontWeight.w900,
+    );
+
     return Material(
-      color: AppColors.cream,
-      borderRadius: BorderRadius.circular(8),
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              right: BorderSide(
+                color: AppColors.caramel.withValues(alpha: 0.42),
+              ),
+              bottom: BorderSide(
+                color: AppColors.caramel.withValues(alpha: 0.42),
+              ),
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (hasClass && !selected)
+                Positioned(
+                  top: 5,
+                  right: 5,
+                  child: Icon(
+                    hasOpenClass ? Icons.favorite : Icons.lock_clock,
+                    size: 12,
+                    color: hasOpenClass
+                        ? AppColors.caramel
+                        : AppColors.mutedText.withValues(alpha: 0.58),
+                  ),
+                ),
+              if (selected)
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD94D43),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.wine.withValues(alpha: 0.22),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                ),
+              Text(day?.toString() ?? '', style: textStyle),
+              if (hasClass && classes.length > 1)
+                Positioned(
+                  bottom: 5,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white : AppColors.burgundy,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthClassPanel extends StatelessWidget {
+  const _MonthClassPanel({
+    required this.selectedClass,
+    required this.monthClasses,
+    required this.onSelect,
+    required this.onApply,
+  });
+
+  final ChemistryClass selectedClass;
+  final List<ChemistryClass> monthClasses;
+  final ValueChanged<ChemistryClass> onSelect;
+  final ValueChanged<ChemistryClass> onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: Column(
+              key: ValueKey(selectedClass.id),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const StatusBadge(
+                      label: '선택 회차',
+                      color: AppColors.wine,
+                      backgroundColor: AppColors.butter,
+                    ),
+                    const Spacer(),
+                    StatusBadge(
+                      label: selectedClass.statusLabel,
+                      color: selectedClass.isOpen
+                          ? AppColors.success
+                          : AppColors.warning,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  selectedClass.title,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  selectedClass.subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                _DetailLine(
+                  icon: Icons.calendar_month,
+                  text: '${selectedClass.dateText}  ${selectedClass.timeText}',
+                ),
+                _DetailLine(icon: Icons.place, text: selectedClass.place),
+                _DetailLine(
+                  icon: Icons.group,
+                  text: selectedClass.capacityLabel,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final tag in selectedClass.tags)
+                      StatusBadge(label: tag),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: selectedClass.isOpen
+                        ? () => onApply(selectedClass)
+                        : null,
+                    icon: Icon(
+                      selectedClass.isOpen
+                          ? Icons.favorite
+                          : Icons.notifications_none,
+                    ),
+                    label: Text(
+                      selectedClass.isOpen ? '이 회차 신청하기' : '오픈 알림 대기',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('이 달의 회차', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          for (final demoClass in monthClasses) ...[
+            _ClassPreviewCard(
+              demoClass: demoClass,
+              selected: demoClass.id == selectedClass.id,
+              onTap: () => onSelect(demoClass),
+            ),
+            if (demoClass != monthClasses.last) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ClassPreviewCard extends StatelessWidget {
+  const _ClassPreviewCard({
+    required this.demoClass,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ChemistryClass demoClass;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.butter.withValues(alpha: 0.7)
+          : AppColors.cream,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: selected ? AppColors.burgundy : AppColors.line),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: demoClass.isOpen ? AppColors.butter : AppColors.line,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  demoClass.isOpen ? Icons.local_dining : Icons.lock_clock,
+                  selected
+                      ? Icons.calendar_month
+                      : demoClass.isOpen
+                      ? Icons.local_dining
+                      : Icons.lock_clock,
                   color: AppColors.wine,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,9 +845,10 @@ class _ClassPreviewCard extends StatelessWidget {
                   ],
                 ),
               ),
-              StatusBadge(
-                label: demoClass.statusLabel,
-                color: demoClass.isOpen ? AppColors.success : AppColors.warning,
+              const SizedBox(width: 8),
+              Icon(
+                selected ? Icons.check_circle : Icons.chevron_right,
+                color: selected ? AppColors.success : AppColors.mutedText,
               ),
             ],
           ),
@@ -383,6 +856,28 @@ class _ClassPreviewCard extends StatelessWidget {
       ),
     );
   }
+}
+
+DateTime _monthOf(ChemistryClass demoClass) {
+  return DateTime(demoClass.eventYear, demoClass.eventMonth);
+}
+
+bool _isSameMonth(DateTime left, DateTime right) {
+  return left.year == right.year && left.month == right.month;
+}
+
+List<int?> _calendarCells(DateTime month) {
+  final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
+  final firstWeekdayOffset = DateTime(month.year, month.month).weekday % 7;
+  final cellCount = ((firstWeekdayOffset + daysInMonth + 6) ~/ 7) * 7;
+
+  return List<int?>.generate(cellCount, (index) {
+    final day = index - firstWeekdayOffset + 1;
+    if (day < 1 || day > daysInMonth) {
+      return null;
+    }
+    return day;
+  });
 }
 
 class _RecipeGrid extends StatelessWidget {

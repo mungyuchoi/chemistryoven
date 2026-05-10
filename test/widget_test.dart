@@ -26,6 +26,25 @@ void main() {
     expect(find.text('이번 달 회차'), findsOneWidget);
   });
 
+  testWidgets('month preview changes selected class from calendar date', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ChemistryOvenApp());
+
+    await tester.scrollUntilVisible(find.text('5월 2024'), 500);
+    await tester.pumpAndSettle();
+    expect(find.text('4:4 소셜 베이킹 매칭'), findsWidgets);
+
+    await tester.tap(find.byTooltip('다음 달'));
+    await tester.pumpAndSettle();
+    expect(find.text('6월 2024'), findsOneWidget);
+    expect(find.text('5:5 케이크 데코레이션 매칭'), findsOneWidget);
+
+    await tester.tap(find.text('15'));
+    await tester.pumpAndSettle();
+    expect(find.text('취향 기반 베이킹 데이트'), findsOneWidget);
+  });
+
   testWidgets('application history shows the current state card only', (
     tester,
   ) async {
