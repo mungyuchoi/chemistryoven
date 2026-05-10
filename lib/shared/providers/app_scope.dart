@@ -6,17 +6,28 @@ import 'demo_flow_provider.dart';
 import 'demo_mode_controller.dart';
 
 class AppState extends ChangeNotifier {
-  AppState._(this.repository)
-    : modeController = DemoModeController(),
-      flowProvider = DemoFlowProvider(repository),
-      adminProvider = AdminDemoProvider(repository) {
+  AppState._({
+    required this.repository,
+    required this.modeController,
+    required this.flowProvider,
+    required this.adminProvider,
+  }) {
     modeController.addListener(_notify);
     flowProvider.addListener(_notify);
     adminProvider.addListener(_notify);
   }
 
   factory AppState.create() {
-    return AppState._(const MockChemistryRepository());
+    const repository = MockChemistryRepository();
+    final modeController = DemoModeController();
+    final flowProvider = DemoFlowProvider(repository);
+    final adminProvider = AdminDemoProvider(repository, flowProvider);
+    return AppState._(
+      repository: repository,
+      modeController: modeController,
+      flowProvider: flowProvider,
+      adminProvider: adminProvider,
+    );
   }
 
   final MockChemistryRepository repository;

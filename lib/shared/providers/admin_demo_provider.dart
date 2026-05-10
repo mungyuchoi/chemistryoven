@@ -2,13 +2,15 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/models/demo_models.dart';
 import '../../data/repositories/mock_chemistry_repository.dart';
+import 'demo_flow_provider.dart';
 
 class AdminDemoProvider extends ChangeNotifier {
-  AdminDemoProvider(this._repository) {
+  AdminDemoProvider(this._repository, this._flowProvider) {
     reset();
   }
 
   final MockChemistryRepository _repository;
+  final DemoFlowProvider _flowProvider;
 
   late List<DemoApplicant> _applicants;
   late List<EventRound> _rounds;
@@ -68,6 +70,7 @@ class AdminDemoProvider extends ChangeNotifier {
         status: selected ? 'AI 선정' : applicant.status,
       );
     }).toList();
+    _flowProvider.syncFromAdmin(DemoFlowStep.selected);
     notifyListeners();
   }
 
@@ -79,6 +82,7 @@ class AdminDemoProvider extends ChangeNotifier {
       }
       return applicant.copyWith(status: '최종 참가자');
     }).toList();
+    _flowProvider.syncFromAdmin(DemoFlowStep.paymentWaiting);
     notifyListeners();
   }
 
@@ -90,6 +94,7 @@ class AdminDemoProvider extends ChangeNotifier {
       }
       return applicant.copyWith(paid: true, status: '입금 확인');
     }).toList();
+    _flowProvider.syncFromAdmin(DemoFlowStep.confirmed);
     notifyListeners();
   }
 
@@ -105,6 +110,7 @@ class AdminDemoProvider extends ChangeNotifier {
       seatIndex += 1;
       return applicant.copyWith(seat: seat);
     }).toList();
+    _flowProvider.syncFromAdmin(DemoFlowStep.nicknameCheck);
     notifyListeners();
   }
 
@@ -125,11 +131,23 @@ class AdminDemoProvider extends ChangeNotifier {
       return entry.value;
     }).toList();
     _currentRoundIndex += 1;
+    switch (_currentRoundIndex) {
+      case 1:
+        _flowProvider.syncFromAdmin(DemoFlowStep.firstImpressionChoice);
+        break;
+      case 3:
+        _flowProvider.syncFromAdmin(DemoFlowStep.middleChoice);
+        break;
+      case 4:
+        _flowProvider.syncFromAdmin(DemoFlowStep.finalChoice);
+        break;
+    }
     notifyListeners();
   }
 
   void aggregateChoices() {
     _choicesAggregated = true;
+    _flowProvider.syncFromAdmin(DemoFlowStep.matchResult);
     notifyListeners();
   }
 
@@ -138,11 +156,13 @@ class AdminDemoProvider extends ChangeNotifier {
     _matches = _matches
         .map((match) => match.copyWith(status: '운영자 승인'))
         .toList();
+    _flowProvider.syncFromAdmin(DemoFlowStep.matchResult);
     notifyListeners();
   }
 
   void sendReports() {
     _reports = _reports.map((report) => report.copyWith(sent: true)).toList();
+    _flowProvider.syncFromAdmin(DemoFlowStep.chemistryReport);
     notifyListeners();
   }
 

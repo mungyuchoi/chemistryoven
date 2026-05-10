@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/section_title.dart';
@@ -25,47 +26,17 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
             sliver: SliverList.list(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: const BoxDecoration(
-                        color: AppColors.burgundy,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.bakery_dining,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '케미스트리오븐',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          Text(
-                            '디저트처럼 자연스럽게 익어가는 만남',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    StatusBadge(label: mode.label),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _HeroPanel(
+                _HomeHeader(mode: mode),
+                const SizedBox(height: 16),
+                const _BrandImageBanner(),
+                const SizedBox(height: 14),
+                _FeaturedClassCard(
                   demoClass: featuredClass,
                   onApply: () => flow.applyForClass(featuredClass.id),
                 ),
-                const SizedBox(height: 18),
-                _FlowCard(flowStep: flow.currentStep),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
+                _StatusPreview(flowStep: flow.currentStep),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -78,8 +49,8 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: flow.currentStep == DemoFlowStep.choice
-                            ? flow.submitChoices
+                        onPressed: flow.currentStep.isChoiceStage
+                            ? flow.submitCurrentChoice
                             : flow.advance,
                         icon: const Icon(Icons.play_arrow),
                         label: Text(flow.currentStep.primaryActionLabel),
@@ -90,22 +61,19 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 26),
                 const SectionTitle(
                   title: '이번 달 회차',
-                  subtitle: '사장님 검토용 더미 회차 카드입니다.',
+                  subtitle: '캘린더에서 가장 가까운 신청 가능 회차를 확인합니다.',
                 ),
                 const SizedBox(height: 12),
-                for (final demoClass in classes) ...[
-                  _ClassPreviewCard(
-                    demoClass: demoClass,
-                    onTap: demoClass.isOpen
-                        ? () => flow.applyForClass(demoClass.id)
-                        : null,
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                const SizedBox(height: 14),
+                _MonthPreview(
+                  classes: classes,
+                  onTap: (demoClass) => demoClass.isOpen
+                      ? () => flow.applyForClass(demoClass.id)
+                      : null,
+                ),
+                const SizedBox(height: 24),
                 const SectionTitle(
                   title: '케미 레시피',
-                  subtitle: '첫 검토에서는 설명보다 화면 흐름이 보이도록 구성합니다.',
+                  subtitle: '신청부터 리포트까지 오늘의 흐름을 한눈에 봅니다.',
                 ),
                 const SizedBox(height: 12),
                 const _RecipeGrid(),
@@ -118,34 +86,75 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HeroPanel extends StatelessWidget {
-  const _HeroPanel({required this.demoClass, required this.onApply});
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({required this.mode});
+
+  final DemoMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 42,
+            height: 42,
+            color: AppColors.wine,
+            child: Image.asset(AppAssets.patisserieSLogo, fit: BoxFit.cover),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('케미스트리오븐', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                '디저트처럼 자연스럽게 익어가는 만남',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        StatusBadge(label: mode.label),
+      ],
+    );
+  }
+}
+
+class _BrandImageBanner extends StatelessWidget {
+  const _BrandImageBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: AspectRatio(
+        aspectRatio: 1.78,
+        child: Image.asset(AppAssets.chemistrySloganWood, fit: BoxFit.cover),
+      ),
+    );
+  }
+}
+
+class _FeaturedClassCard extends StatelessWidget {
+  const _FeaturedClassCard({required this.demoClass, required this.onApply});
 
   final ChemistryClass demoClass;
   final VoidCallback onApply;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: AppColors.wine,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.wine.withValues(alpha: 0.14),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return AppCard(
+      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               const StatusBadge(
-                label: '검토용 UI',
+                label: '모집 중',
                 color: AppColors.wine,
                 backgroundColor: AppColors.butter,
               ),
@@ -153,53 +162,44 @@ class _HeroPanel extends StatelessWidget {
               Text(
                 demoClass.priceText,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.burgundy,
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           Text(
             demoClass.subtitle,
-            style: const TextStyle(
-              color: AppColors.butter,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             demoClass.title,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineLarge?.copyWith(color: Colors.white),
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 10),
-          Text(
-            '${demoClass.dateText} · ${demoClass.timeText}\n${demoClass.place}',
-            style: const TextStyle(color: Color(0xFFFFE8C2), height: 1.45),
+          _DetailLine(
+            icon: Icons.schedule,
+            text: '${demoClass.dateText}  ${demoClass.timeText}',
           ),
-          const SizedBox(height: 18),
+          _DetailLine(icon: Icons.place, text: demoClass.place),
+          _DetailLine(icon: Icons.auto_awesome, text: 'AI 케미 분석 + 베이킹 + 대화'),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final tag in demoClass.tags)
-                StatusBadge(
-                  label: tag,
-                  color: AppColors.wine,
-                  backgroundColor: Colors.white.withValues(alpha: 0.9),
-                ),
+              for (final tag in demoClass.tags) StatusBadge(label: tag),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
+            child: ElevatedButton.icon(
               onPressed: onApply,
               icon: const Icon(Icons.favorite),
-              label: const Text('8기 신청 흐름 시작'),
+              label: const Text('신청하기'),
             ),
           ),
         ],
@@ -208,50 +208,120 @@ class _HeroPanel extends StatelessWidget {
   }
 }
 
-class _FlowCard extends StatelessWidget {
-  const _FlowCard({required this.flowStep});
+class _StatusPreview extends StatelessWidget {
+  const _StatusPreview({required this.flowStep});
 
   final DemoFlowStep flowStep;
 
   @override
   Widget build(BuildContext context) {
-    final appState = AppScope.of(context);
-    final flow = appState.flowProvider;
+    final progress = AppScope.of(context).flowProvider.progress;
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Stack(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.timeline, color: AppColors.burgundy),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '현재 데모 흐름',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              StatusBadge(label: flowStep.label),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 8,
-              value: flow.progress,
-              backgroundColor: AppColors.line,
-              valueColor: const AlwaysStoppedAnimation(AppColors.burgundy),
+          Positioned.fill(
+            child: Image.asset(
+              AppAssets.chemistryFlowBackground,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            flowStep.description,
-            style: Theme.of(context).textTheme.bodyMedium,
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.ivory.withValues(alpha: 0.78),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.timeline, color: AppColors.burgundy),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '현재 신청 현황',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    StatusBadge(label: flowStep.label),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: progress,
+                    backgroundColor: Colors.white.withValues(alpha: 0.7),
+                    valueColor: const AlwaysStoppedAnimation(
+                      AppColors.burgundy,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  flowStep.description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MonthPreview extends StatelessWidget {
+  const _MonthPreview({required this.classes, required this.onTap});
+
+  final List<ChemistryClass> classes;
+  final VoidCallback? Function(ChemistryClass demoClass) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 520;
+        final calendar = ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            AppAssets.chemistryCalendarPreview,
+            fit: BoxFit.cover,
+            height: wide ? 180 : 150,
+            width: wide ? 170 : double.infinity,
+          ),
+        );
+        final list = Column(
+          children: [
+            for (final demoClass in classes) ...[
+              _ClassPreviewCard(demoClass: demoClass, onTap: onTap(demoClass)),
+              if (demoClass != classes.last) const SizedBox(height: 10),
+            ],
+          ],
+        );
+
+        return AppCard(
+          color: Colors.white,
+          child: wide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    calendar,
+                    const SizedBox(width: 14),
+                    Expanded(child: list),
+                  ],
+                )
+              : Column(children: [calendar, const SizedBox(height: 14), list]),
+        );
+      },
     );
   }
 }
@@ -264,44 +334,52 @@ class _ClassPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: demoClass.isOpen ? AppColors.butter : AppColors.line,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              demoClass.isOpen ? Icons.local_dining : Icons.lock_clock,
-              color: AppColors.wine,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  demoClass.title,
-                  style: Theme.of(context).textTheme.titleMedium,
+    return Material(
+      color: AppColors.cream,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: demoClass.isOpen ? AppColors.butter : AppColors.line,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${demoClass.dateText} · ${demoClass.capacityLabel}',
-                  style: Theme.of(context).textTheme.bodySmall,
+                child: Icon(
+                  demoClass.isOpen ? Icons.local_dining : Icons.lock_clock,
+                  color: AppColors.wine,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      demoClass.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${demoClass.dateText} · ${demoClass.capacityLabel}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              StatusBadge(
+                label: demoClass.statusLabel,
+                color: demoClass.isOpen ? AppColors.success : AppColors.warning,
+              ),
+            ],
           ),
-          StatusBadge(
-            label: demoClass.statusLabel,
-            color: demoClass.isOpen ? AppColors.success : AppColors.warning,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -315,8 +393,8 @@ class _RecipeGrid extends StatelessWidget {
     const recipes = [
       ('신청', Icons.edit_note, '정보 입력과 인증 대기'),
       ('선정', Icons.auto_awesome, 'AI 선정 결과 확인'),
-      ('당일', Icons.chair_alt, '좌석과 라운드 진행'),
-      ('매칭', Icons.favorite, '상호 선택과 리포트'),
+      ('당일', Icons.chair_alt, '닉네임과 선택 제출'),
+      ('리포트', Icons.description, '매칭 결과와 후기 설문'),
     ];
 
     return GridView.count(
@@ -342,6 +420,29 @@ class _RecipeGrid extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.burgundy, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 }

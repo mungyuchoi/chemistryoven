@@ -256,3 +256,37 @@ const demoReports = <ChemistryReport>[
     sent: false,
   ),
 ];
+
+const demoParticipantProfile = DemoParticipantProfile(
+  nickname: '바닐라슈',
+  gender: '여성',
+  seat: 'A-1',
+  keywords: ['밝은 대화', '디저트 취향', '편안한 리드'],
+);
+
+const demoChoiceCandidates = <ChoiceCandidate>[
+  ChoiceCandidate(
+    nickname: '소금빵',
+    gender: '남성',
+    keywords: ['차분함', '기획직', '취미 베이킹'],
+    chemistryScore: 88,
+  ),
+  ChoiceCandidate(
+    nickname: '크루아상',
+    gender: '남성',
+    keywords: ['성실함', '전문직', '안정감'],
+    chemistryScore: 93,
+  ),
+  ChoiceCandidate(
+    nickname: '초코칩',
+    gender: '남성',
+    keywords: ['실용적', '운동', '편안한 분위기'],
+    chemistryScore: 86,
+  ),
+  ChoiceCandidate(
+    nickname: '스콘',
+    gender: '남성',
+    keywords: ['유머', '음악', '주말 산책'],
+    chemistryScore: 84,
+  ),
+];

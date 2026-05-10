@@ -51,8 +51,10 @@ enum DemoFlowStep {
   selected,
   paymentWaiting,
   confirmed,
-  eventDay,
-  choice,
+  nicknameCheck,
+  firstImpressionChoice,
+  middleChoice,
+  finalChoice,
   matchResult,
   chemistryReport,
   review,
@@ -75,10 +77,14 @@ extension DemoFlowStepX on DemoFlowStep {
         return '입금 대기';
       case DemoFlowStep.confirmed:
         return '최종 확정';
-      case DemoFlowStep.eventDay:
-        return '행사 당일';
-      case DemoFlowStep.choice:
-        return '선택';
+      case DemoFlowStep.nicknameCheck:
+        return '닉네임 확인';
+      case DemoFlowStep.firstImpressionChoice:
+        return '첫인상 선택';
+      case DemoFlowStep.middleChoice:
+        return '중간 선택';
+      case DemoFlowStep.finalChoice:
+        return '최종 선택';
       case DemoFlowStep.matchResult:
         return '매칭 결과';
       case DemoFlowStep.chemistryReport:
@@ -104,10 +110,14 @@ extension DemoFlowStepX on DemoFlowStep {
         return '입금 확인 전 상태입니다. 운영자가 더미 입금을 승인할 수 있습니다.';
       case DemoFlowStep.confirmed:
         return '최종 참가가 확정되었습니다. 행사 당일까지 안내를 확인합니다.';
-      case DemoFlowStep.eventDay:
-        return '행사 당일 전용 화면으로 좌석과 라운드 안내를 확인합니다.';
-      case DemoFlowStep.choice:
-        return '첫인상, 중간, 최종 선택을 더미로 제출합니다.';
+      case DemoFlowStep.nicknameCheck:
+        return 'AI가 정리한 디저트 닉네임과 오늘의 시작 좌석을 확인합니다.';
+      case DemoFlowStep.firstImpressionChoice:
+        return '입장 직후의 첫인상 선택을 제출합니다.';
+      case DemoFlowStep.middleChoice:
+        return '대화와 베이킹 후 함께하고 싶은 파트너를 선택합니다.';
+      case DemoFlowStep.finalChoice:
+        return '마지막으로 마음을 전할 상대와 짧은 메시지를 남깁니다.';
       case DemoFlowStep.matchResult:
         return '상호 선택 결과와 연락처 공개 전 안내를 확인합니다.';
       case DemoFlowStep.chemistryReport:
@@ -132,11 +142,15 @@ extension DemoFlowStepX on DemoFlowStep {
       case DemoFlowStep.paymentWaiting:
         return '입금 확인 처리';
       case DemoFlowStep.confirmed:
-        return '행사 당일로 이동';
-      case DemoFlowStep.eventDay:
-        return '선택 화면 열기';
-      case DemoFlowStep.choice:
-        return '선택 제출';
+        return '닉네임 확인하기';
+      case DemoFlowStep.nicknameCheck:
+        return '첫인상 선택 열기';
+      case DemoFlowStep.firstImpressionChoice:
+        return '첫인상 선택 제출';
+      case DemoFlowStep.middleChoice:
+        return '중간 선택 제출';
+      case DemoFlowStep.finalChoice:
+        return '최종 선택 제출';
       case DemoFlowStep.matchResult:
         return '케미 리포트 보기';
       case DemoFlowStep.chemistryReport:
@@ -145,6 +159,13 @@ extension DemoFlowStepX on DemoFlowStep {
         return '프로토타입 다시 시작';
     }
   }
+
+  bool get isApplicationStage => index < DemoFlowStep.nicknameCheck.index;
+  bool get isChoiceStage =>
+      this == DemoFlowStep.firstImpressionChoice ||
+      this == DemoFlowStep.middleChoice ||
+      this == DemoFlowStep.finalChoice;
+  bool get isEventStage => index >= DemoFlowStep.nicknameCheck.index;
 }
 
 class ChemistryClass {
@@ -346,4 +367,58 @@ class ChoiceSummary {
   final int totalChoices;
   final int mutualMatches;
   final String topDessert;
+}
+
+enum ChoicePhase { firstImpression, middle, finalChoice }
+
+extension ChoicePhaseX on ChoicePhase {
+  String get label {
+    switch (this) {
+      case ChoicePhase.firstImpression:
+        return '첫인상 선택';
+      case ChoicePhase.middle:
+        return '중간 선택';
+      case ChoicePhase.finalChoice:
+        return '최종 선택';
+    }
+  }
+
+  String get instruction {
+    switch (this) {
+      case ChoicePhase.firstImpression:
+        return '첫 대화 후 가장 더 이야기해보고 싶은 닉네임을 선택합니다.';
+      case ChoicePhase.middle:
+        return '베이킹 파트너로 함께하고 싶은 닉네임을 선택합니다.';
+      case ChoicePhase.finalChoice:
+        return '마지막으로 마음을 전하고 싶은 닉네임을 선택합니다.';
+    }
+  }
+}
+
+class DemoParticipantProfile {
+  const DemoParticipantProfile({
+    required this.nickname,
+    required this.gender,
+    required this.seat,
+    required this.keywords,
+  });
+
+  final String nickname;
+  final String gender;
+  final String seat;
+  final List<String> keywords;
+}
+
+class ChoiceCandidate {
+  const ChoiceCandidate({
+    required this.nickname,
+    required this.gender,
+    required this.keywords,
+    required this.chemistryScore,
+  });
+
+  final String nickname;
+  final String gender;
+  final List<String> keywords;
+  final int chemistryScore;
 }

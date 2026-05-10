@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/section_title.dart';
@@ -67,7 +68,7 @@ class MyPageScreen extends StatelessWidget {
                     onSelectionChanged: (selection) {
                       modeController.setMode(selection.first);
                       if (selection.first == DemoMode.participantToday) {
-                        flow.jumpTo(DemoFlowStep.eventDay);
+                        flow.jumpTo(DemoFlowStep.nicknameCheck);
                       }
                     },
                     showSelectedIcon: false,
@@ -130,11 +131,14 @@ class _ProfileSummary extends StatelessWidget {
           Container(
             width: 56,
             height: 56,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.butter,
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(mode.icon, color: AppColors.wine),
+            clipBehavior: Clip.antiAlias,
+            child: mode == DemoMode.guest
+                ? Image.asset(AppAssets.chefMascot, fit: BoxFit.cover)
+                : Icon(mode.icon, color: AppColors.wine),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -198,8 +202,8 @@ class _FlowControlCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: flow.currentStep == DemoFlowStep.choice
-                      ? flow.submitChoices
+                  onPressed: flow.currentStep.isChoiceStage
+                      ? flow.submitCurrentChoice
                       : flow.advance,
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('다음 단계'),

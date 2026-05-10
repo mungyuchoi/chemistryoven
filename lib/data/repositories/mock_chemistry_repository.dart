@@ -35,4 +35,12 @@ class MockChemistryRepository {
   List<ChemistryReport> fetchReports() {
     return demoReports.map((report) => report.copyWith()).toList();
   }
+
+  DemoParticipantProfile fetchParticipantProfile() {
+    return demoParticipantProfile;
+  }
+
+  List<ChoiceCandidate> fetchChoiceCandidates() {
+    return List.unmodifiable(demoChoiceCandidates);
+  }
 }
