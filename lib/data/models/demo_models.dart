@@ -2,6 +2,57 @@ import 'package:flutter/material.dart';
 
 enum DemoMode { guest, user, participantToday, admin }
 
+enum MainTab { home, schedule, lab, ovening, my }
+
+extension MainTabX on MainTab {
+  String get label {
+    switch (this) {
+      case MainTab.home:
+        return '홈';
+      case MainTab.schedule:
+        return '일정';
+      case MainTab.lab:
+        return '케미Lab';
+      case MainTab.ovening:
+        return '오브닝';
+      case MainTab.my:
+        return '마이';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case MainTab.home:
+        return Icons.home_outlined;
+      case MainTab.schedule:
+        return Icons.calendar_month_outlined;
+      case MainTab.lab:
+        return Icons.science_outlined;
+      case MainTab.ovening:
+        return Icons.local_fire_department_outlined;
+      case MainTab.my:
+        return Icons.person_outline;
+    }
+  }
+
+  IconData get selectedIcon {
+    switch (this) {
+      case MainTab.home:
+        return Icons.home;
+      case MainTab.schedule:
+        return Icons.calendar_month;
+      case MainTab.lab:
+        return Icons.science;
+      case MainTab.ovening:
+        return Icons.local_fire_department;
+      case MainTab.my:
+        return Icons.person;
+    }
+  }
+
+  bool get requiresSession => this == MainTab.ovening;
+}
+
 extension DemoModeX on DemoMode {
   String get label {
     switch (this) {
@@ -429,4 +480,169 @@ class ChoiceCandidate {
   final String gender;
   final List<String> keywords;
   final int chemistryScore;
+}
+
+enum OnboardingStep {
+  intro,
+  basicInfo,
+  rhythm,
+  conversation,
+  tastes,
+  keywords,
+  preferences,
+  verification,
+  result,
+}
+
+extension OnboardingStepX on OnboardingStep {
+  String get stepLabel {
+    switch (this) {
+      case OnboardingStep.intro:
+        return 'STEP 0';
+      case OnboardingStep.basicInfo:
+        return '1/7';
+      case OnboardingStep.rhythm:
+        return '2/7';
+      case OnboardingStep.conversation:
+        return '3/7';
+      case OnboardingStep.tastes:
+        return '4/7';
+      case OnboardingStep.keywords:
+        return '5/7';
+      case OnboardingStep.preferences:
+        return '6/7';
+      case OnboardingStep.verification:
+        return '7/7';
+      case OnboardingStep.result:
+        return 'CHEMISTRY ANALYSIS';
+    }
+  }
+
+  String get title {
+    switch (this) {
+      case OnboardingStep.intro:
+        return '나의 케미를 알아볼까요?';
+      case OnboardingStep.basicInfo:
+        return '기본 정보를 알려주세요.';
+      case OnboardingStep.rhythm:
+        return '나의 일상 리듬을 알려주세요.';
+      case OnboardingStep.conversation:
+        return '내가 편안해지는 대화 방식을 골라주세요.';
+      case OnboardingStep.tastes:
+        return '대화가 자연스럽게 시작될 취향을 알려주세요.';
+      case OnboardingStep.keywords:
+        return '나를 가장 잘 설명하는 말은?';
+      case OnboardingStep.preferences:
+        return '편안한 만남을 위해 선호 조건을 알려주세요.';
+      case OnboardingStep.verification:
+        return '안전한 오브닝을 위해 기본 인증을 진행합니다.';
+      case OnboardingStep.result:
+        return '케미 분석이 완료되었어요.';
+    }
+  }
+
+  String get subtitle {
+    switch (this) {
+      case OnboardingStep.intro:
+        return '몇 가지 질문으로 나의 성향과 잘 맞는 오브닝을 추천해드려요.';
+      case OnboardingStep.basicInfo:
+        return '정확한 회차 추천과 인원 구성에 사용돼요.';
+      case OnboardingStep.rhythm:
+        return '비슷한 시간대에 편하게 참여할 수 있는 회차를 추천해드려요.';
+      case OnboardingStep.conversation:
+        return '정답은 없어요. 자연스러운 케미를 찾기 위한 질문이에요.';
+      case OnboardingStep.tastes:
+        return '현장 대화와 케미 분석에 활용돼요.';
+      case OnboardingStep.keywords:
+        return '짧은 답변으로도 AI가 케미 포인트를 분석해요.';
+      case OnboardingStep.preferences:
+        return '상관없음도 좋은 선택이에요. 선정·매칭 참고용으로만 사용돼요.';
+      case OnboardingStep.verification:
+        return '제출된 인증 자료는 운영진 확인용으로만 사용돼요.';
+      case OnboardingStep.result:
+        return '내 성향을 가장 잘 닮은 케미 캐릭터를 찾았어요.';
+    }
+  }
+}
+
+class OnboardingAnswer {
+  const OnboardingAnswer({
+    required this.step,
+    required this.title,
+    required this.values,
+  });
+
+  final OnboardingStep step;
+  final String title;
+  final List<String> values;
+}
+
+class ChemistryCharacter {
+  const ChemistryCharacter({
+    required this.id,
+    required this.initial,
+    required this.name,
+    required this.englishName,
+    required this.summary,
+    required this.description,
+    required this.tags,
+    required this.matchHint,
+    required this.forMen,
+  });
+
+  final String id;
+  final String initial;
+  final String name;
+  final String englishName;
+  final String summary;
+  final String description;
+  final List<String> tags;
+  final String matchHint;
+  final bool forMen;
+}
+
+enum OveningState {
+  beforeApplication,
+  waiting,
+  openReady,
+  voting,
+  result,
+  report,
+}
+
+extension OveningStateX on OveningState {
+  String get label {
+    switch (this) {
+      case OveningState.beforeApplication:
+        return '신청 전';
+      case OveningState.waiting:
+        return '오픈 대기';
+      case OveningState.openReady:
+        return '당일 오픈';
+      case OveningState.voting:
+        return '투표 진행';
+      case OveningState.result:
+        return '매칭 결과';
+      case OveningState.report:
+        return '케미 리포트';
+    }
+  }
+}
+
+class AdminScoreRow {
+  const AdminScoreRow({
+    required this.name,
+    required this.gender,
+    required this.strictScore,
+    required this.objectiveScore,
+    required this.chemistryScore,
+    required this.summary,
+  });
+
+  final String name;
+  final String gender;
+  final int strictScore;
+  final int objectiveScore;
+  final int chemistryScore;
+  final String summary;
 }

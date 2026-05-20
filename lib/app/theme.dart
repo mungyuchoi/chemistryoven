@@ -7,10 +7,10 @@ class AppTheme {
 
   static ThemeData get lightTheme {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.burgundy,
+      seedColor: AppColors.brandRed,
       brightness: Brightness.light,
-      primary: AppColors.burgundy,
-      secondary: AppColors.caramel,
+      primary: AppColors.brandRed,
+      secondary: AppColors.gold,
       surface: AppColors.ivory,
     );
 
@@ -41,14 +41,14 @@ class AppTheme {
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.ivory,
-        selectedItemColor: AppColors.burgundy,
+        selectedItemColor: AppColors.brandRed,
         unselectedItemColor: AppColors.mutedText,
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.burgundy,
+          backgroundColor: AppColors.brandRed,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -58,10 +58,11 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.burgundy,
-          side: const BorderSide(color: AppColors.burgundy),
+          foregroundColor: AppColors.brandRed,
+          side: const BorderSide(color: AppColors.line),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -73,7 +74,7 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.cream,
-        selectedColor: AppColors.burgundy,
+        selectedColor: AppColors.brandRed,
         labelStyle: const TextStyle(color: AppColors.cocoa),
         secondaryLabelStyle: const TextStyle(color: Colors.white),
         side: const BorderSide(color: AppColors.line),
@@ -92,7 +93,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.burgundy, width: 1.4),
+          borderSide: const BorderSide(color: AppColors.brandRed, width: 1.4),
         ),
       ),
       textTheme: const TextTheme(

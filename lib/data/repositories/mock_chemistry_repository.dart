@@ -43,4 +43,20 @@ class MockChemistryRepository {
   List<ChoiceCandidate> fetchChoiceCandidates() {
     return List.unmodifiable(demoChoiceCandidates);
   }
+
+  List<ChemistryCharacter> fetchCharacters() {
+    return List.unmodifiable(demoCharacters);
+  }
+
+  ChemistryCharacter fetchFeaturedCharacter() {
+    return demoCharacters.first;
+  }
+
+  Map<OnboardingStep, List<String>> fetchOnboardingChoices() {
+    return Map.unmodifiable(demoOnboardingChoices);
+  }
+
+  List<AdminScoreRow> fetchAdminScoreRows() {
+    return List.unmodifiable(demoAdminScores);
+  }
 }

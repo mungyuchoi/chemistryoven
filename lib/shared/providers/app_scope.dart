@@ -4,14 +4,17 @@ import '../../data/repositories/mock_chemistry_repository.dart';
 import 'admin_demo_provider.dart';
 import 'demo_flow_provider.dart';
 import 'demo_mode_controller.dart';
+import 'demo_session_controller.dart';
 
 class AppState extends ChangeNotifier {
   AppState._({
     required this.repository,
+    required this.sessionController,
     required this.modeController,
     required this.flowProvider,
     required this.adminProvider,
   }) {
+    sessionController.addListener(_notify);
     modeController.addListener(_notify);
     flowProvider.addListener(_notify);
     adminProvider.addListener(_notify);
@@ -19,11 +22,13 @@ class AppState extends ChangeNotifier {
 
   factory AppState.create() {
     const repository = MockChemistryRepository();
+    final sessionController = DemoSessionController();
     final modeController = DemoModeController();
     final flowProvider = DemoFlowProvider(repository);
     final adminProvider = AdminDemoProvider(repository, flowProvider);
     return AppState._(
       repository: repository,
+      sessionController: sessionController,
       modeController: modeController,
       flowProvider: flowProvider,
       adminProvider: adminProvider,
@@ -31,6 +36,7 @@ class AppState extends ChangeNotifier {
   }
 
   final MockChemistryRepository repository;
+  final DemoSessionController sessionController;
   final DemoModeController modeController;
   final DemoFlowProvider flowProvider;
   final AdminDemoProvider adminProvider;
@@ -41,9 +47,11 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    sessionController.removeListener(_notify);
     modeController.removeListener(_notify);
     flowProvider.removeListener(_notify);
     adminProvider.removeListener(_notify);
+    sessionController.dispose();
     modeController.dispose();
     flowProvider.dispose();
     adminProvider.dispose();
