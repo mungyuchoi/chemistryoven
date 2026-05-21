@@ -23,6 +23,8 @@ class _MainTabScreenState extends State<MainTabScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = AppScope.of(context);
+    final isAdminMode = appState.modeController.mode == DemoMode.admin;
     final tabs = MainTab.values;
     final currentIndex = tabs.indexOf(_currentTab);
     final screens = [
@@ -45,35 +47,37 @@ class _MainTabScreenState extends State<MainTabScreen> {
 
     return Scaffold(
       body: IndexedStack(index: currentIndex, children: screens),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.ivory,
-          border: const Border(top: BorderSide(color: AppColors.line)),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.wine.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: NavigationBar(
-          selectedIndex: currentIndex,
-          height: 70,
-          backgroundColor: AppColors.ivory,
-          indicatorColor: AppColors.blush,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          onDestinationSelected: (index) => _selectTab(tabs[index]),
-          destinations: [
-            for (final tab in tabs)
-              NavigationDestination(
-                icon: Icon(tab.icon),
-                selectedIcon: Icon(tab.selectedIcon),
-                label: tab.label,
+      bottomNavigationBar: isAdminMode
+          ? null
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.ivory,
+                border: const Border(top: BorderSide(color: AppColors.line)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.wine.withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
               ),
-          ],
-        ),
-      ),
+              child: NavigationBar(
+                selectedIndex: currentIndex,
+                height: 70,
+                backgroundColor: AppColors.ivory,
+                indicatorColor: AppColors.blush,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                onDestinationSelected: (index) => _selectTab(tabs[index]),
+                destinations: [
+                  for (final tab in tabs)
+                    NavigationDestination(
+                      icon: Icon(tab.icon),
+                      selectedIcon: Icon(tab.selectedIcon),
+                      label: tab.label,
+                    ),
+                ],
+              ),
+            ),
     );
   }
 

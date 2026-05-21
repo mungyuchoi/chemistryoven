@@ -14,6 +14,13 @@ class ChemistryOvenApp extends StatelessWidget {
         title: '케미스트리오븐',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+        builder: (context, child) {
+          final mediaQuery = MediaQuery.of(context);
+          return MediaQuery(
+            data: mediaQuery.copyWith(textScaler: TextScaler.noScaling),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         home: const MainTabScreen(),
       ),
     );

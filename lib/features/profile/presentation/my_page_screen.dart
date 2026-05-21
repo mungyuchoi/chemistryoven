@@ -23,6 +23,10 @@ class MyPageScreen extends StatelessWidget {
     final session = appState.sessionController;
     final mode = appState.modeController.mode;
 
+    if (mode == DemoMode.admin) {
+      return const SafeArea(child: AdminDashboardScreen());
+    }
+
     return SafeArea(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -32,98 +36,94 @@ class MyPageScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 430),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-                child: mode == DemoMode.admin
-                    ? const AdminDashboardScreen()
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const _MyTopBar(),
-                          const SizedBox(height: 14),
-                          if (session.isGuest)
-                            _GuestProfile(
-                              onStartOnboarding: onStartOnboarding,
-                              onDemoLogin: () {
-                                appState.sessionController.loginAsDemoUser();
-                                appState.modeController.setMode(DemoMode.user);
-                              },
-                              onAdminPreview: () {
-                                appState.sessionController.loginAsDemoUser(
-                                  displayName: 'sora',
-                                );
-                                appState.modeController.setMode(DemoMode.admin);
-                              },
-                            )
-                          else ...[
-                            const _ProfileHeader(),
-                            const SizedBox(height: 24),
-                            _ApplicationStatusCard(
-                              onOpenOvening: onOpenOvening,
-                            ),
-                            const SizedBox(height: 24),
-                            const _MenuSection(
-                              title: '결제 · 인증',
-                              items: [
-                                _MenuItem(
-                                  icon: Icons.credit_card_rounded,
-                                  title: '결제 내역',
-                                  value: '1건',
-                                ),
-                                _MenuItem(
-                                  icon: Icons.verified_user_outlined,
-                                  title: '인증 관리',
-                                  value: '완료',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            const _MenuSection(
-                              title: '활동',
-                              items: [
-                                _MenuItem(
-                                  icon: Icons.article_outlined,
-                                  title: '내가 쓴 후기',
-                                  value: '3',
-                                ),
-                                _MenuItem(
-                                  icon: Icons.favorite_border_rounded,
-                                  title: '받은 케미 리포트',
-                                  value: '2',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            const _MenuSection(
-                              title: '설정',
-                              items: [
-                                _MenuItem(
-                                  icon: Icons.notifications_none_rounded,
-                                  title: '알림 설정',
-                                  value: 'ON',
-                                ),
-                                _MenuItem(
-                                  icon: Icons.settings_outlined,
-                                  title: '앱 설정',
-                                  value: '',
-                                ),
-                                _MenuItem(
-                                  icon: Icons.logout_rounded,
-                                  title: '로그아웃',
-                                  value: '',
-                                  muted: true,
-                                ),
-                                _MenuItem(
-                                  icon: Icons.person_remove_alt_1_outlined,
-                                  title: '회원탈퇴',
-                                  value: '',
-                                  muted: true,
-                                ),
-                              ],
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          _DemoModeCard(onOpenOvening: onOpenOvening),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _MyTopBar(),
+                    const SizedBox(height: 14),
+                    if (session.isGuest)
+                      _GuestProfile(
+                        onStartOnboarding: onStartOnboarding,
+                        onDemoLogin: () {
+                          appState.sessionController.loginAsDemoUser();
+                          appState.modeController.setMode(DemoMode.user);
+                        },
+                        onAdminPreview: () {
+                          appState.sessionController.loginAsDemoUser(
+                            displayName: 'sora',
+                          );
+                          appState.modeController.setMode(DemoMode.admin);
+                        },
+                      )
+                    else ...[
+                      const _ProfileHeader(),
+                      const SizedBox(height: 24),
+                      _ApplicationStatusCard(onOpenOvening: onOpenOvening),
+                      const SizedBox(height: 24),
+                      const _MenuSection(
+                        title: '결제 · 인증',
+                        items: [
+                          _MenuItem(
+                            icon: Icons.credit_card_rounded,
+                            title: '결제 내역',
+                            value: '1건',
+                          ),
+                          _MenuItem(
+                            icon: Icons.verified_user_outlined,
+                            title: '인증 관리',
+                            value: '완료',
+                          ),
                         ],
                       ),
+                      const SizedBox(height: 24),
+                      const _MenuSection(
+                        title: '활동',
+                        items: [
+                          _MenuItem(
+                            icon: Icons.article_outlined,
+                            title: '내가 쓴 후기',
+                            value: '3',
+                          ),
+                          _MenuItem(
+                            icon: Icons.favorite_border_rounded,
+                            title: '받은 케미 리포트',
+                            value: '2',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      const _MenuSection(
+                        title: '설정',
+                        items: [
+                          _MenuItem(
+                            icon: Icons.notifications_none_rounded,
+                            title: '알림 설정',
+                            value: 'ON',
+                          ),
+                          _MenuItem(
+                            icon: Icons.settings_outlined,
+                            title: '앱 설정',
+                            value: '',
+                          ),
+                          _MenuItem(
+                            icon: Icons.logout_rounded,
+                            title: '로그아웃',
+                            value: '',
+                            muted: true,
+                          ),
+                          _MenuItem(
+                            icon: Icons.person_remove_alt_1_outlined,
+                            title: '회원탈퇴',
+                            value: '',
+                            muted: true,
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    _DemoModeCard(onOpenOvening: onOpenOvening),
+                  ],
+                ),
               ),
             ),
           ),
