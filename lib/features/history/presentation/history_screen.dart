@@ -116,6 +116,10 @@ class _StageBody extends StatelessWidget {
       case DemoFlowStep.middleChoice:
       case DemoFlowStep.finalChoice:
         return const _ChoiceStageCard();
+      case DemoFlowStep.rotationTalk:
+      case DemoFlowStep.seatingGuide:
+      case DemoFlowStep.pairBaking:
+        return _ApplicationStateCard(currentStep: currentStep);
       case DemoFlowStep.matchResult:
         return const _MatchResultCard();
       case DemoFlowStep.chemistryReport:

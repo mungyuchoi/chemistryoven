@@ -5,6 +5,10 @@ import '../../../core/widgets/app_card.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../shared/providers/app_scope.dart';
 import '../../../shared/providers/demo_flow_provider.dart';
+import '../../report/presentation/chemistry_report_screen.dart';
+import '../../social/presentation/couple_board_screen.dart';
+import '../../social/presentation/ovening_lounge_screen.dart';
+import '../../social/presentation/review_gate_screen.dart';
 
 class OveningScreen extends StatelessWidget {
   const OveningScreen({
@@ -76,8 +80,14 @@ class _StageBody extends StatelessWidget {
         return _OpenWaitingStage(flow: flow);
       case DemoFlowStep.firstImpressionChoice:
         return _VotingStage(flow: flow);
+      case DemoFlowStep.rotationTalk:
+        return _RotationStage(flow: flow);
       case DemoFlowStep.middleChoice:
+        return _VotingStage(flow: flow);
+      case DemoFlowStep.seatingGuide:
         return _SeatReadyStage(flow: flow);
+      case DemoFlowStep.pairBaking:
+        return _PairBakingStage(flow: flow);
       case DemoFlowStep.finalChoice:
         return _VotingStage(flow: flow);
       case DemoFlowStep.matchResult:
@@ -464,6 +474,143 @@ class _VotingStage extends StatelessWidget {
   }
 }
 
+class _RotationStage extends StatelessWidget {
+  const _RotationStage({required this.flow});
+
+  final DemoFlowProvider flow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const _StageBadge(label: 'ROTATION'),
+            const SizedBox(width: 10),
+            Text(
+              '03:00 남음',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '2 / 4',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.burgundy,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '옆자리 대화를 시작해요.',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: AppColors.burgundy,
+            fontSize: 27,
+            fontWeight: FontWeight.w500,
+            height: 1.18,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '모든 참가자와 짧게 1:1 대화해보고 중간 선택 전에 대화 온도를 확인합니다.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.cocoa, height: 1.55),
+        ),
+        const SizedBox(height: 24),
+        AppCard(
+          color: Colors.white,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SectionLabel('현재 대화 상대'),
+              const SizedBox(height: 14),
+              Row(
+                children: const [
+                  _ResultAvatar(label: '소'),
+                  SizedBox(width: 12),
+                  Expanded(child: _RotationProfile()),
+                ],
+              ),
+              const Divider(height: 28, color: AppColors.line),
+              const _InfoRow(
+                data: _InfoRowData(
+                  icon: Icons.work_outline,
+                  title: '서비스 기획자 · 33',
+                  subtitle: '차분하지만 유머가 은은한 타입',
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.line, indent: 52),
+              const _InfoRow(
+                data: _InfoRowData(
+                  icon: Icons.chat_bubble_outline,
+                  title: '추천 질문',
+                  subtitle: '최근 가장 좋았던 카페나 디저트는?',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        AppCard(
+          color: AppColors.blush.withValues(alpha: 0.76),
+          borderColor: AppColors.rose,
+          padding: const EdgeInsets.all(14),
+          child: Text(
+            '라운드가 끝나면 자리 이동 안내가 뜨고, 모든 로테이션이 끝난 뒤 중간 선택이 열려요.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.cocoa,
+              height: 1.55,
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: flow.advance,
+            child: Text(flow.currentStep.primaryActionLabel),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RotationProfile extends StatelessWidget {
+  const _RotationProfile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '소금빵',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppColors.cocoa,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '다정 · 은은한 매력 · INTJ',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+      ],
+    );
+  }
+}
+
 class _SeatReadyStage extends StatelessWidget {
   const _SeatReadyStage({required this.flow});
 
@@ -479,7 +626,7 @@ class _SeatReadyStage extends StatelessWidget {
             const _StageBadge(label: 'OVENING'),
             const SizedBox(width: 10),
             Text(
-              '중간 선택',
+              '자리배치',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.burgundy,
                 fontWeight: FontWeight.w900,
@@ -524,7 +671,7 @@ class _SeatReadyStage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'YOUR NEW SEAT',
+                      'YOUR BAKING SEAT',
                       style: TextStyle(
                         color: AppColors.burgundy,
                         fontSize: 10,
@@ -596,7 +743,126 @@ class _SeatReadyStage extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: flow.submitCurrentChoice,
+            onPressed: flow.advance,
+            child: Text(flow.currentStep.primaryActionLabel),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PairBakingStage extends StatelessWidget {
+  const _PairBakingStage({required this.flow});
+
+  final DemoFlowProvider flow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const _StageBadge(label: 'PAIR BAKING'),
+            const SizedBox(width: 10),
+            Text(
+              '35:00 남음',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '함께 만들며 케미를 확인해요.',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: AppColors.burgundy,
+            fontSize: 27,
+            fontWeight: FontWeight.w500,
+            height: 1.18,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '말로만 보는 소개팅이 아니라, 같이 움직이고 배려하는 방식까지 확인하는 시간이에요.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.cocoa, height: 1.55),
+        ),
+        const SizedBox(height: 22),
+        AppCard(
+          color: AppColors.wine,
+          borderColor: AppColors.wine,
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'TODAY PAIR',
+                style: TextStyle(
+                  color: AppColors.butter,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: const [
+                  _ResultAvatar(label: 'T'),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Icon(Icons.close_rounded, color: AppColors.butter),
+                  ),
+                  _ResultAvatar(label: '소'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '티라미수 × 소금빵',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '딸기 타르트 크림 짜기 · 포장 마무리',
+                style: TextStyle(color: Color(0xFFFFE7DA), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const _SectionLabel('베이킹 체크리스트'),
+        const SizedBox(height: 10),
+        const _InfoRows(
+          items: [
+            _InfoRowData(
+              icon: Icons.restaurant_menu_outlined,
+              title: '레시피 카드 확인',
+              subtitle: '반죽 · 크림 · 장식 순서대로 진행',
+            ),
+            _InfoRowData(
+              icon: Icons.favorite_border,
+              title: '케미 포인트',
+              subtitle: '역할 나누기, 작은 배려, 리액션을 자연스럽게 보기',
+            ),
+            _InfoRowData(
+              icon: Icons.timer_outlined,
+              title: '다음 단계',
+              subtitle: '완성 후 최종 선택 라운드가 열려요',
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: flow.advance,
             child: Text(flow.currentStep.primaryActionLabel),
           ),
         ),
@@ -702,7 +968,9 @@ class _MatchResultStage extends StatelessWidget {
         const SizedBox(height: 10),
         _ChemistryRecordCard(onTap: flow.advance),
         const SizedBox(height: 22),
-        const _SectionLabel('후기 남기기'),
+        const _SectionLabel('오브닝 라운지'),
+        const SizedBox(height: 10),
+        const _LoungeEntryCard(),
       ],
     );
   }
@@ -730,7 +998,7 @@ class _MatchContactPanel extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           const Text(
-            '김도현 (1993)',
+            '지원자 B (30대)',
             style: TextStyle(
               color: Colors.white,
               fontSize: 17,
@@ -739,7 +1007,7 @@ class _MatchContactPanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            '010-0000-0000',
+            '010-****-0000',
             style: TextStyle(color: Color(0xFFFFE7DA), fontSize: 12),
           ),
           const SizedBox(height: 12),
@@ -886,23 +1154,10 @@ class _ChemistryRecordCard extends StatelessWidget {
   }
 }
 
-class _ReportStage extends StatefulWidget {
+class _ReportStage extends StatelessWidget {
   const _ReportStage({required this.flow});
 
   final DemoFlowProvider flow;
-
-  @override
-  State<_ReportStage> createState() => _ReportStageState();
-}
-
-class _ReportStageState extends State<_ReportStage> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -950,21 +1205,39 @@ class _ReportStageState extends State<_ReportStage> {
           ),
         ),
         const SizedBox(height: 14),
-        TextField(
-          controller: _controller,
-          minLines: 3,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: '참여 후기',
-            hintText: '오늘의 오브닝은 어땠나요?',
-          ),
+        Text(
+          '후기를 남기면 AI가 작성한 전체 케미 리포트가 열려요.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: widget.flow.submitReview,
-            child: const Text('후기 남기기'),
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      ReviewGateScreen(onReviewSubmitted: flow.submitReview),
+                ),
+              );
+            },
+            icon: const Icon(Icons.lock_open_rounded, size: 18),
+            label: const Text('후기 남기고 리포트 열기'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ChemistryReportScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.article_outlined, size: 18),
+            label: const Text('전체 리포트 미리 보기 (검토용)'),
           ),
         ),
       ],
@@ -998,7 +1271,37 @@ class _ReviewStage extends StatelessWidget {
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const OveningLoungeScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.forum_outlined, size: 18),
+              label: const Text('오브닝 라운지 입장하기'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CoupleBoardScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.favorite_border, size: 18),
+              label: const Text('커플 인증 게시판 보기'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
               onPressed: flow.reset,
               child: const Text('프로토타입 다시 시작'),
             ),
@@ -1504,5 +1807,82 @@ class _RingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) {
     return oldDelegate.color != color;
+  }
+}
+
+/// 매칭 결과 화면에서 진입하는 오브닝 라운지 카드.
+class _LoungeEntryCard extends StatelessWidget {
+  const _LoungeEntryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const OveningLoungeScreen(),
+          ),
+        );
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.forum_outlined, color: AppColors.brandRed),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '오브닝 라운지',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.cocoa,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.butter,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'OPEN · 12시간',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.wine,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '매칭 여부와 상관없이 오늘 함께한 모든 분과 하루 동안 대화할 수 있어요.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.mutedText,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.chevron_right,
+            color: AppColors.mutedText,
+            size: 20,
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -275,7 +275,7 @@ class _ProfileHeader extends StatelessWidget {
                   border: Border.all(color: AppColors.brandRed),
                 ),
                 child: Text(
-                  '지윤',
+                  '참A',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppColors.brandRed,
                     fontWeight: FontWeight.w500,
@@ -293,16 +293,14 @@ class _ProfileHeader extends StatelessWidget {
                         TextSpan(
                           children: [
                             TextSpan(
-                              text: session.displayName == '지윤'
-                                  ? '김지윤'
-                                  : session.displayName,
+                              text: session.displayName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.cocoa,
                               ),
                             ),
                             const TextSpan(
-                              text: ' · 1995',
+                              text: ' · 90년대생',
                               style: TextStyle(color: AppColors.mutedText),
                             ),
                           ],
@@ -497,7 +495,10 @@ class _ApplicationStatusCard extends StatelessWidget {
       case DemoFlowStep.confirmed:
       case DemoFlowStep.nicknameCheck:
       case DemoFlowStep.firstImpressionChoice:
+      case DemoFlowStep.rotationTalk:
       case DemoFlowStep.middleChoice:
+      case DemoFlowStep.seatingGuide:
+      case DemoFlowStep.pairBaking:
       case DemoFlowStep.finalChoice:
       case DemoFlowStep.matchResult:
       case DemoFlowStep.chemistryReport:
@@ -515,7 +516,10 @@ class _ApplicationStatusCard extends StatelessWidget {
       case DemoFlowStep.confirmed:
       case DemoFlowStep.nicknameCheck:
       case DemoFlowStep.firstImpressionChoice:
+      case DemoFlowStep.rotationTalk:
       case DemoFlowStep.middleChoice:
+      case DemoFlowStep.seatingGuide:
+      case DemoFlowStep.pairBaking:
       case DemoFlowStep.finalChoice:
       case DemoFlowStep.matchResult:
       case DemoFlowStep.chemistryReport:
@@ -583,7 +587,10 @@ class _StatusRail extends StatelessWidget {
       case DemoFlowStep.confirmed:
       case DemoFlowStep.nicknameCheck:
       case DemoFlowStep.firstImpressionChoice:
+      case DemoFlowStep.rotationTalk:
       case DemoFlowStep.middleChoice:
+      case DemoFlowStep.seatingGuide:
+      case DemoFlowStep.pairBaking:
       case DemoFlowStep.finalChoice:
       case DemoFlowStep.matchResult:
       case DemoFlowStep.chemistryReport:
@@ -811,7 +818,7 @@ class _DemoModeCard extends StatelessWidget {
                   appState.flowProvider.reset();
                 } else {
                   appState.sessionController.loginAsDemoUser(
-                    displayName: selected == DemoMode.admin ? 'sora' : '지윤',
+                    displayName: selected == DemoMode.admin ? 'admin' : '참가자 A',
                   );
                 }
                 modeController.setMode(selected);

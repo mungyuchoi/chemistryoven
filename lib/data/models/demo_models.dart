@@ -104,7 +104,10 @@ enum DemoFlowStep {
   confirmed,
   nicknameCheck,
   firstImpressionChoice,
+  rotationTalk,
   middleChoice,
+  seatingGuide,
+  pairBaking,
   finalChoice,
   matchResult,
   chemistryReport,
@@ -132,8 +135,14 @@ extension DemoFlowStepX on DemoFlowStep {
         return '닉네임 확인';
       case DemoFlowStep.firstImpressionChoice:
         return '첫인상 선택';
+      case DemoFlowStep.rotationTalk:
+        return '로테이션 대화';
       case DemoFlowStep.middleChoice:
         return '중간 선택';
+      case DemoFlowStep.seatingGuide:
+        return '자리배치';
+      case DemoFlowStep.pairBaking:
+        return '페어 베이킹';
       case DemoFlowStep.finalChoice:
         return '최종 선택';
       case DemoFlowStep.matchResult:
@@ -165,8 +174,14 @@ extension DemoFlowStepX on DemoFlowStep {
         return 'AI가 정리한 디저트 닉네임과 오늘의 시작 좌석을 확인합니다.';
       case DemoFlowStep.firstImpressionChoice:
         return '입장 직후의 첫인상 선택을 제출합니다.';
+      case DemoFlowStep.rotationTalk:
+        return '전원과 짧게 1:1 대화를 나누며 대화 흐름을 확인합니다.';
       case DemoFlowStep.middleChoice:
         return '대화와 베이킹 후 함께하고 싶은 파트너를 선택합니다.';
+      case DemoFlowStep.seatingGuide:
+        return '첫인상과 중간 선택, 케미 점수를 바탕으로 새 테이블을 안내합니다.';
+      case DemoFlowStep.pairBaking:
+        return '배정된 파트너와 함께 디저트를 만들며 협업 케미를 확인합니다.';
       case DemoFlowStep.finalChoice:
         return '마지막으로 마음을 전할 상대와 짧은 메시지를 남깁니다.';
       case DemoFlowStep.matchResult:
@@ -198,8 +213,14 @@ extension DemoFlowStepX on DemoFlowStep {
         return '첫인상 선택 열기';
       case DemoFlowStep.firstImpressionChoice:
         return '첫인상 선택 제출';
+      case DemoFlowStep.rotationTalk:
+        return '중간 선택 열기';
       case DemoFlowStep.middleChoice:
         return '중간 선택 제출';
+      case DemoFlowStep.seatingGuide:
+        return '페어 베이킹 시작';
+      case DemoFlowStep.pairBaking:
+        return '최종 선택 열기';
       case DemoFlowStep.finalChoice:
         return '최종 선택 제출';
       case DemoFlowStep.matchResult:
@@ -484,12 +505,15 @@ class ChoiceCandidate {
 
 enum OnboardingStep {
   intro,
+  account,
   basicInfo,
   rhythm,
   conversation,
   tastes,
+  lifestyle,
   keywords,
   preferences,
+  profilePreview,
   verification,
   result,
 }
@@ -499,20 +523,26 @@ extension OnboardingStepX on OnboardingStep {
     switch (this) {
       case OnboardingStep.intro:
         return 'STEP 0';
+      case OnboardingStep.account:
+        return 'STEP 1';
       case OnboardingStep.basicInfo:
-        return '1/7';
+        return 'STEP 2';
       case OnboardingStep.rhythm:
-        return '2/7';
+        return 'STEP 3';
       case OnboardingStep.conversation:
-        return '3/7';
+        return 'STEP 4';
       case OnboardingStep.tastes:
-        return '4/7';
+        return 'STEP 5';
+      case OnboardingStep.lifestyle:
+        return 'STEP 6';
       case OnboardingStep.keywords:
-        return '5/7';
+        return 'STEP 7';
       case OnboardingStep.preferences:
-        return '6/7';
+        return 'STEP 8';
+      case OnboardingStep.profilePreview:
+        return 'STEP 9';
       case OnboardingStep.verification:
-        return '7/7';
+        return 'STEP 10';
       case OnboardingStep.result:
         return 'CHEMISTRY ANALYSIS';
     }
@@ -522,6 +552,8 @@ extension OnboardingStepX on OnboardingStep {
     switch (this) {
       case OnboardingStep.intro:
         return '나의 케미를 알아볼까요?';
+      case OnboardingStep.account:
+        return '안전하게 시작할 계정을 만들어요.';
       case OnboardingStep.basicInfo:
         return '기본 정보를 알려주세요.';
       case OnboardingStep.rhythm:
@@ -530,10 +562,14 @@ extension OnboardingStepX on OnboardingStep {
         return '내가 편안해지는 대화 방식을 골라주세요.';
       case OnboardingStep.tastes:
         return '대화가 자연스럽게 시작될 취향을 알려주세요.';
+      case OnboardingStep.lifestyle:
+        return '디저트와 라이프스타일 취향을 알려주세요.';
       case OnboardingStep.keywords:
-        return '나를 가장 잘 설명하는 말은?';
+        return '호감 포인트와 관계 온도를 골라주세요.';
       case OnboardingStep.preferences:
         return '편안한 만남을 위해 선호 조건을 알려주세요.';
+      case OnboardingStep.profilePreview:
+        return 'AI가 볼 프로필을 미리 확인해요.';
       case OnboardingStep.verification:
         return '안전한 오브닝을 위해 기본 인증을 진행합니다.';
       case OnboardingStep.result:
@@ -545,6 +581,8 @@ extension OnboardingStepX on OnboardingStep {
     switch (this) {
       case OnboardingStep.intro:
         return '몇 가지 질문으로 나의 성향과 잘 맞는 오브닝을 추천해드려요.';
+      case OnboardingStep.account:
+        return '휴대폰 인증과 로그인 정보를 먼저 준비해요.';
       case OnboardingStep.basicInfo:
         return '정확한 회차 추천과 인원 구성에 사용돼요.';
       case OnboardingStep.rhythm:
@@ -553,10 +591,14 @@ extension OnboardingStepX on OnboardingStep {
         return '정답은 없어요. 자연스러운 케미를 찾기 위한 질문이에요.';
       case OnboardingStep.tastes:
         return '현장 대화와 케미 분석에 활용돼요.';
+      case OnboardingStep.lifestyle:
+        return '베이킹 현장에서 편안한 메뉴와 대화 소재를 추천해요.';
       case OnboardingStep.keywords:
-        return '짧은 답변으로도 AI가 케미 포인트를 분석해요.';
+        return '길게 쓰지 않아도 좋아요. 선택한 키워드로 케미 포인트를 잡아요.';
       case OnboardingStep.preferences:
         return '상관없음도 좋은 선택이에요. 선정·매칭 참고용으로만 사용돼요.';
+      case OnboardingStep.profilePreview:
+        return '공개 정보와 운영진 확인 정보를 분리해서 보여줘요.';
       case OnboardingStep.verification:
         return '제출된 인증 자료는 운영진 확인용으로만 사용돼요.';
       case OnboardingStep.result:

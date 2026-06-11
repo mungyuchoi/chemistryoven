@@ -43,6 +43,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   _AdminScreen _reviewsBackTarget = _AdminScreen.matchResult;
   int _menCount = 4;
   int _womenCount = 4;
+  bool _rememberAdminLogin = true;
+  Map<String, _SeatAssignment> _seatAssignments = Map.of(
+    _initialSeatAssignments,
+  );
+  String? _selectedSeatId = 'A1';
+  String? _lastSeatSwap;
+  int _seatSwapCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -58,16 +65,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
-                  child: ListView(
-                    key: ValueKey(_screen),
-                    padding: EdgeInsets.fromLTRB(
-                      20,
-                      18,
-                      20,
-                      _screen == _AdminScreen.login ? 28 : 18,
-                    ),
-                    children: [_buildScreen(context, appState)],
-                  ),
+                  child: _screen == _AdminScreen.login
+                      ? KeyedSubtree(
+                          key: ValueKey(_screen),
+                          child: _buildScreen(context, appState),
+                        )
+                      : ListView(
+                          key: ValueKey(_screen),
+                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                          children: [_buildScreen(context, appState)],
+                        ),
                 ),
               ),
               if (_screen != _AdminScreen.login)
@@ -128,6 +135,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() => _screen = screen);
   }
 
+  String get _seatingEditSubtitle {
+    if (_lastSeatSwap != null) {
+      return '$_lastSeatSwap 변경됨';
+    }
+    return '${_selectedSeatId ?? '자리'} 선택됨';
+  }
+
+  String get _seatingEditScore => _seatSwapCount == 0 ? '84.2' : '82.6 -1.6';
+
+  void _handleSeatTap(String seatId) {
+    final selectedSeatId = _selectedSeatId;
+    if (selectedSeatId == null || selectedSeatId == seatId) {
+      setState(() => _selectedSeatId = seatId);
+      return;
+    }
+
+    setState(() {
+      final updated = Map<String, _SeatAssignment>.of(_seatAssignments);
+      final selectedAssignment = updated[selectedSeatId]!;
+      updated[selectedSeatId] = updated[seatId]!;
+      updated[seatId] = selectedAssignment;
+      _seatAssignments = updated;
+      _selectedSeatId = seatId;
+      _lastSeatSwap = '$selectedSeatId ↔ $seatId';
+      _seatSwapCount += 1;
+    });
+  }
+
+  void _resetSeatAssignments() {
+    setState(() {
+      _seatAssignments = Map.of(_initialSeatAssignments);
+      _selectedSeatId = 'A1';
+      _lastSeatSwap = null;
+      _seatSwapCount = 0;
+    });
+  }
+
   _AdminTab _tabForScreen(_AdminScreen screen) {
     switch (screen) {
       case _AdminScreen.dashboard:
@@ -171,48 +215,94 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildLogin(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Stack(
       children: [
-        const SizedBox(height: 56),
-        const _AdminMonogram(size: 60, label: 'C'),
-        const SizedBox(height: 32),
-        const _TinyEyebrow('ADMIN · v1.1'),
-        const SizedBox(height: 8),
-        Text('오늘의 회차를 준비할 시간이에요.', style: _displayStyle(context, 29)),
-        const SizedBox(height: 56),
-        const _AdminInput(label: '운영자 이메일'),
-        const SizedBox(height: 10),
-        const _AdminInput(label: '비밀번호'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '이 기기에서 자동 로그인',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.cocoa),
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(28, 40, 28, 180),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _AdminMonogram(
+                size: 64,
+                label: 'C',
+                gradient: true,
+                radius: 20,
               ),
-            ),
-            Text(
-              '비밀번호 찾기',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.burgundy,
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 24),
+              const _TinyEyebrow('ADMIN · v1.1'),
+              const SizedBox(height: 8),
+              Text('오늘의 회차를\n준비할 시간이에요.', style: _displayStyle(context, 32)),
+              const SizedBox(height: 40),
+              const _AdminInput(label: '운영자 이메일', value: 'admin@example.com'),
+              const SizedBox(height: 12),
+              const _AdminInput(
+                label: '비밀번호',
+                value: '••••••••••',
+                obscure: true,
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberAdminLogin,
+                    onChanged: (value) =>
+                        setState(() => _rememberAdminLogin = value ?? true),
+                    activeColor: AppColors.burgundy,
+                    checkColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    side: const BorderSide(color: AppColors.line, width: 1.5),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '이 기기에서 자동 로그인',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.cocoa,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '비밀번호 찾기',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.burgundy,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 220),
-        _WideButton(label: '로그인', onTap: () => _go(_AdminScreen.dashboard)),
-        const SizedBox(height: 10),
-        Center(
-          child: Text(
-            '운영자 계정 문의 · admin@chemistry-oven.kr',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.mutedText,
-              fontSize: 11,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.cream.withValues(alpha: 0.96),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
+              child: Column(
+                children: [
+                  _WideButton(
+                    label: '로그인',
+                    onTap: () => _go(_AdminScreen.dashboard),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    '운영자 계정 문의 · admin@chemistry-oven.kr',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.mutedText,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -486,20 +576,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
         ),
         const SizedBox(height: 14),
-        const Row(
-          children: [
-            Expanded(
-              child: _AdminChip(label: '전체 6', selected: true, compact: true),
-            ),
-            SizedBox(width: 6),
-            Expanded(child: _AdminChip(label: '모집중 2', compact: true)),
-            SizedBox(width: 6),
-            Expanded(child: _AdminChip(label: '선정중 1', compact: true)),
-            SizedBox(width: 6),
-            Expanded(child: _AdminChip(label: '확정 2', compact: true)),
-            SizedBox(width: 6),
-            Expanded(child: _AdminChip(label: '종료 1', compact: true)),
-          ],
+        const _HorizontalChipStrip(
+          labels: ['전체 6', '모집중 2', '선정중 1', '확정 2', '종료 1'],
+          selectedIndex: 0,
         ),
         const SizedBox(height: 14),
         _SessionListCard(
@@ -932,7 +1011,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const _InfoLine(
                 icon: Icons.phone_iphone_outlined,
                 label: '연락처',
-                value: '010-****-2398',
+                value: '010-****-0000',
               ),
               const _DividerLine(),
               const _InfoLine(
@@ -1413,7 +1492,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const _SectionHeader(title: '미응답자', trailing: '1명'),
                     const SizedBox(height: 4),
                     Text(
-                      '단팥빵 · 오지훈\n22분 · 22초 경과',
+                      '단팥빵 · 지원자 D\n22분 · 22초 경과',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.mutedText,
                         height: 1.4,
@@ -1540,12 +1619,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        const _SeatingTable(title: 'A 테이블', tableName: 'TABLE A'),
+        _SeatingTable(
+          title: 'A 테이블',
+          tableName: 'TABLE A',
+          assignments: _seatAssignments,
+        ),
         const SizedBox(height: 18),
-        const _SeatingTable(
+        _SeatingTable(
           title: 'B 테이블',
           tableName: 'TABLE B',
           flipped: true,
+          assignments: _seatAssignments,
         ),
         const SizedBox(height: 16),
         Row(
@@ -1576,7 +1660,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: '자리 수동 편집',
-          subtitle: 'A1 ↔ B3 변경됨',
+          subtitle: _seatingEditSubtitle,
           onBack: () => _go(_AdminScreen.seatingAuto),
           actionText: '수정',
         ),
@@ -1608,41 +1692,55 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           color: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
           child: Row(
-            children: const [
-              Expanded(
+            children: [
+              const Expanded(
                 child: _SmallMetric(label: '기본 추천안', value: '84.2'),
               ),
               Expanded(
-                child: _SmallMetric(label: '수정본', value: '82.6 -1.6'),
+                child: _SmallMetric(label: '수정본', value: _seatingEditScore),
               ),
               Expanded(
-                child: _SmallMetric(label: '변경', value: '1명'),
+                child: _SmallMetric(label: '변경', value: '$_seatSwapCount명'),
               ),
             ],
           ),
         ),
         const SizedBox(height: 20),
-        const _SeatingTable(
+        _SeatingTable(
           title: 'A 테이블',
           tableName: 'TABLE A',
+          assignments: _seatAssignments,
+          selectedSeatId: _selectedSeatId,
           editing: true,
+          onSeatTap: _handleSeatTap,
         ),
         const SizedBox(height: 18),
-        const _SeatingTable(
+        _SeatingTable(
           title: 'B 테이블',
           tableName: 'TABLE B',
           flipped: true,
+          assignments: _seatAssignments,
+          selectedSeatId: _selectedSeatId,
           editing: true,
+          onSeatTap: _handleSeatTap,
         ),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              child: _WideButton(label: '초기화', muted: true, onTap: () {}),
+              child: _WideButton(
+                label: '초기화',
+                muted: true,
+                onTap: _resetSeatAssignments,
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _WideButton(label: '다시추천', muted: true, onTap: () {}),
+              child: _WideButton(
+                label: '다시추천',
+                muted: true,
+                onTap: _resetSeatAssignments,
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1716,7 +1814,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           left: '티',
           right: '소',
           title: '티라미수↔소금빵',
-          subtitle: '이지윤·박서준',
+          subtitle: '지원자 E·지원자 B',
           score: '91',
         ),
         const SizedBox(height: 10),
@@ -1724,7 +1822,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           left: '에',
           right: '크',
           title: '에그타르트↔크루아상',
-          subtitle: '최예린·김도현',
+          subtitle: '지원자 F·지원자 A',
           score: '88',
         ),
         const SizedBox(height: 10),
@@ -1732,7 +1830,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           left: '마',
           right: '에',
           title: '마들렌↔에클레어',
-          subtitle: '한소영·정민호',
+          subtitle: '지원자 G·지원자 C',
           score: '79',
         ),
         const SizedBox(height: 20),
@@ -1854,10 +1952,33 @@ class _AdminApplicantData {
   final bool selected;
 }
 
+class _SeatAssignment {
+  const _SeatAssignment({
+    required this.initial,
+    required this.character,
+    required this.name,
+  });
+
+  final String initial;
+  final String character;
+  final String name;
+}
+
+const _initialSeatAssignments = <String, _SeatAssignment>{
+  'A1': _SeatAssignment(initial: '크', character: '크루아상', name: '지원자 A'),
+  'A2': _SeatAssignment(initial: '티', character: '티라미수', name: '지원자 E'),
+  'A3': _SeatAssignment(initial: '소', character: '소금빵', name: '지원자 B'),
+  'A4': _SeatAssignment(initial: '에', character: '에그타르트', name: '지원자 F'),
+  'B1': _SeatAssignment(initial: '예', character: '에클레어', name: '지원자 C'),
+  'B2': _SeatAssignment(initial: '마', character: '마들렌', name: '지원자 G'),
+  'B3': _SeatAssignment(initial: '단', character: '단팥빵', name: '지원자 D'),
+  'B4': _SeatAssignment(initial: '몽', character: '몽블랑', name: '지원자 H'),
+};
+
 const _adminApplicants = <_AdminApplicantData>[
   _AdminApplicantData(
-    initial: '김',
-    name: '김도현',
+    initial: 'A',
+    name: '지원자 A',
     gender: '남',
     age: 30,
     birth: '1996.02',
@@ -1873,8 +1994,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: true,
   ),
   _AdminApplicantData(
-    initial: '박',
-    name: '박서준',
+    initial: 'B',
+    name: '지원자 B',
     gender: '남',
     age: 32,
     birth: '1994.09',
@@ -1890,8 +2011,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: true,
   ),
   _AdminApplicantData(
-    initial: '정',
-    name: '정민호',
+    initial: 'C',
+    name: '지원자 C',
     gender: '남',
     age: 29,
     birth: '1997.01',
@@ -1907,8 +2028,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: false,
   ),
   _AdminApplicantData(
-    initial: '오',
-    name: '오지훈',
+    initial: 'D',
+    name: '지원자 D',
     gender: '남',
     age: 28,
     birth: '1998.06',
@@ -1924,8 +2045,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: false,
   ),
   _AdminApplicantData(
-    initial: '이',
-    name: '이지윤',
+    initial: 'E',
+    name: '지원자 E',
     gender: '여',
     age: 28,
     birth: '1998.04',
@@ -1941,8 +2062,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: true,
   ),
   _AdminApplicantData(
-    initial: '최',
-    name: '최예린',
+    initial: 'F',
+    name: '지원자 F',
     gender: '여',
     age: 27,
     birth: '1999.03',
@@ -1958,8 +2079,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: true,
   ),
   _AdminApplicantData(
-    initial: '한',
-    name: '한소영',
+    initial: 'G',
+    name: '지원자 G',
     gender: '여',
     age: 30,
     birth: '1996.11',
@@ -1975,8 +2096,8 @@ const _adminApplicants = <_AdminApplicantData>[
     selected: false,
   ),
   _AdminApplicantData(
-    initial: '윤',
-    name: '윤예진',
+    initial: 'H',
+    name: '지원자 H',
     gender: '여',
     age: 31,
     birth: '1995.08',
@@ -2057,7 +2178,7 @@ class _AdminBrandBar extends StatelessWidget {
           const SizedBox(width: 8),
         ],
         Text(
-          'ChemistryOven',
+          'Chemistry Oven',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             color: AppColors.wine,
             fontWeight: FontWeight.w800,
@@ -2148,7 +2269,7 @@ class _SquareIconButton extends StatelessWidget {
     return Material(
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: AppColors.line),
       ),
       clipBehavior: Clip.antiAlias,
@@ -2243,10 +2364,17 @@ class _AdminBottomNav extends StatelessWidget {
 }
 
 class _AdminMonogram extends StatelessWidget {
-  const _AdminMonogram({required this.size, required this.label});
+  const _AdminMonogram({
+    required this.size,
+    required this.label,
+    this.gradient = false,
+    this.radius = 14,
+  });
 
   final double size;
   final String label;
+  final bool gradient;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -2255,8 +2383,15 @@ class _AdminMonogram extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.burgundy,
-        borderRadius: BorderRadius.circular(14),
+        color: gradient ? null : AppColors.burgundy,
+        gradient: gradient
+            ? const LinearGradient(
+                colors: [AppColors.wine, AppColors.burgundy],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: Text(
         label,
@@ -2328,14 +2463,15 @@ class _AdminChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 9 : 14,
-        vertical: compact ? 6 : 9,
+        horizontal: compact ? 12 : 14,
+        vertical: compact ? 7 : 10,
       ),
       decoration: BoxDecoration(
-        color: selected ? AppColors.burgundy : AppColors.ivory,
+        color: selected ? AppColors.burgundy : Colors.white,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: selected ? AppColors.burgundy : AppColors.line,
+          width: 1.5,
         ),
       ),
       child: Align(
@@ -2348,8 +2484,8 @@ class _AdminChip extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: selected ? Colors.white : AppColors.cocoa,
-            fontWeight: FontWeight.w800,
-            fontSize: compact ? 11 : null,
+            fontWeight: FontWeight.w700,
+            fontSize: compact ? 12 : 13,
           ),
         ),
       ),
@@ -2358,9 +2494,10 @@ class _AdminChip extends StatelessWidget {
 }
 
 class _HorizontalChipStrip extends StatelessWidget {
-  const _HorizontalChipStrip({required this.labels});
+  const _HorizontalChipStrip({required this.labels, this.selectedIndex});
 
   final List<String> labels;
+  final int? selectedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -2370,7 +2507,11 @@ class _HorizontalChipStrip extends StatelessWidget {
       child: Row(
         children: [
           for (var i = 0; i < labels.length; i++) ...[
-            _AdminChip(label: labels[i], compact: true),
+            _AdminChip(
+              label: labels[i],
+              selected: selectedIndex == i,
+              compact: true,
+            ),
             if (i != labels.length - 1) const SizedBox(width: 8),
           ],
         ],
@@ -2416,37 +2557,74 @@ class _HorizontalSelectableChipStrip extends StatelessWidget {
 }
 
 class _AdminInput extends StatelessWidget {
-  const _AdminInput({required this.label, this.icon});
+  const _AdminInput({
+    required this.label,
+    this.icon,
+    this.value,
+    this.obscure = false,
+  });
 
   final String label;
   final IconData? icon;
+  final String? value;
+  final bool obscure;
 
   @override
   Widget build(BuildContext context) {
+    final displayValue = value;
+
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: displayValue == null ? 50 : 66),
+      padding: EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: displayValue == null ? 0 : 12,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.line),
       ),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 17, color: AppColors.burgundy),
-            const SizedBox(width: 10),
-          ],
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
+      child: displayValue == null
+          ? Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 17, color: AppColors.burgundy),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.mutedText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  displayValue,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.cocoa,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    letterSpacing: obscure ? 1.6 : 0,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2465,16 +2643,17 @@ class _WideButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      width: double.infinity,
+      height: 56,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: muted ? AppColors.ivory : AppColors.brandRed,
+          backgroundColor: muted ? AppColors.ivory : AppColors.burgundy,
           foregroundColor: muted ? AppColors.burgundy : Colors.white,
-          elevation: muted ? 0 : 1,
+          elevation: muted ? 0 : 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(18),
             side: BorderSide(
-              color: muted ? AppColors.line : AppColors.brandRed,
+              color: muted ? AppColors.line : AppColors.burgundy,
             ),
           ),
         ),
@@ -2483,7 +2662,7 @@ class _WideButton extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
       ),
     );
@@ -2836,17 +3015,27 @@ class _StatusPill extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: textColor,
-          fontWeight: FontWeight.w800,
-          fontSize: 10,
+      child: SizedBox(
+        height: 24,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          child: Align(
+            alignment: Alignment.center,
+            widthFactor: 1,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 10,
+                height: 1,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2863,23 +3052,31 @@ class _ApplicantStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: ValueKey('applicant-status-$label'),
-      height: 22,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: selected
             ? AppColors.burgundy
             : AppColors.pistachio.withValues(alpha: 0.34),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: selected ? Colors.white : AppColors.success,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          height: 1,
+      child: SizedBox(
+        height: 22,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Align(
+            alignment: Alignment.center,
+            widthFactor: 1,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: selected ? Colors.white : AppColors.success,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                height: 1,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -3598,11 +3795,20 @@ class _CandidateGroup extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${applicant.mbti} · 예상 평균 케미',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.mutedText,
-                        ),
+                      Row(
+                        children: [
+                          _CandidateCharacterPill(label: applicant.character),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${applicant.mbti} · 예상 평균 케미',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.mutedText),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -3635,6 +3841,35 @@ class _CandidateGroup extends StatelessWidget {
           const SizedBox(height: 8),
         ],
       ],
+    );
+  }
+}
+
+class _CandidateCharacterPill extends StatelessWidget {
+  const _CandidateCharacterPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.parchment,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: AppColors.burgundy,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
     );
   }
 }
@@ -4131,23 +4366,37 @@ class _SeatingTable extends StatelessWidget {
   const _SeatingTable({
     required this.title,
     required this.tableName,
+    required this.assignments,
     this.flipped = false,
     this.editing = false,
+    this.selectedSeatId,
+    this.onSeatTap,
   });
 
   final String title;
   final String tableName;
+  final Map<String, _SeatAssignment> assignments;
   final bool flipped;
   final bool editing;
+  final String? selectedSeatId;
+  final ValueChanged<String>? onSeatTap;
 
   @override
   Widget build(BuildContext context) {
-    final top = flipped
-        ? const [('예', '에클레어', '정민호', 'B1'), ('마', '마들렌', '한소영', 'B2')]
-        : const [('크', '크루아상', '김도현', 'A1'), ('티', '티라미수', '이지윤', 'A2')];
-    final bottom = flipped
-        ? const [('크', '크루아상', '김도현', 'B3'), ('몽', '몽블랑', '윤예진', 'B4')]
-        : const [('소', '소금빵', '박서준', 'A3'), ('에', '에그타르트', '최예린', 'A4')];
+    final top = flipped ? const ['B1', 'B2'] : const ['A1', 'A2'];
+    final bottom = flipped ? const ['B3', 'B4'] : const ['A3', 'A4'];
+
+    Widget buildSeat(String seatId) {
+      final assignment = assignments[seatId]!;
+      return _SeatPerson(
+        initial: assignment.initial,
+        character: assignment.character,
+        name: assignment.name,
+        seat: seatId,
+        selected: editing && selectedSeatId == seatId,
+        onTap: editing ? () => onSeatTap?.call(seatId) : null,
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4161,16 +4410,7 @@ class _SeatingTable extends StatelessWidget {
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  for (var i = 0; i < top.length; i++)
-                    _SeatPerson(
-                      initial: top[i].$1,
-                      character: top[i].$2,
-                      name: top[i].$3,
-                      seat: top[i].$4,
-                      selected: editing && i == 0,
-                    ),
-                ],
+                children: [for (final seatId in top) buildSeat(seatId)],
               ),
               const SizedBox(height: 16),
               Container(
@@ -4204,16 +4444,7 @@ class _SeatingTable extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  for (var i = 0; i < bottom.length; i++)
-                    _SeatPerson(
-                      initial: bottom[i].$1,
-                      character: bottom[i].$2,
-                      name: bottom[i].$3,
-                      seat: bottom[i].$4,
-                      selected: editing && flipped && i == 0,
-                    ),
-                ],
+                children: [for (final seatId in bottom) buildSeat(seatId)],
               ),
             ],
           ),
@@ -4230,6 +4461,7 @@ class _SeatPerson extends StatelessWidget {
     required this.name,
     required this.seat,
     this.selected = false,
+    this.onTap,
   });
 
   final String initial;
@@ -4237,99 +4469,113 @@ class _SeatPerson extends StatelessWidget {
   final String name;
   final String seat;
   final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 88,
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+    return Semantics(
+      button: onTap != null,
+      selected: selected,
+      child: GestureDetector(
+        key: ValueKey('seat-$seat'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: 88,
+          child: Column(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.burgundy : AppColors.parchment,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: selected ? AppColors.gold : AppColors.line,
-                    width: selected ? 2 : 1,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.burgundy
+                          : AppColors.parchment,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? AppColors.gold : AppColors.line,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    child: Text(
+                      initial,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: selected ? AppColors.butter : AppColors.burgundy,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                ),
-                child: Text(
-                  initial,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: selected ? AppColors.butter : AppColors.burgundy,
-                    fontWeight: FontWeight.w500,
+                  Positioned(
+                    right: -4,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      child: Text(
+                        seat,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.cocoa,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   ),
+                  if (selected)
+                    Positioned(
+                      right: -7,
+                      bottom: -5,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: const BoxDecoration(
+                          color: AppColors.butter,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.edit_outlined,
+                          size: 11,
+                          color: AppColors.burgundy,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                character,
+                key: ValueKey('seat-$seat-character'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.cocoa,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              Positioned(
-                right: -4,
-                top: -6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.line),
-                  ),
-                  child: Text(
-                    seat,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.cocoa,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+              Text(
+                name,
+                key: ValueKey('seat-$seat-name'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.mutedText,
+                  fontSize: 10,
                 ),
               ),
-              if (selected)
-                Positioned(
-                  right: -7,
-                  bottom: -5,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: const BoxDecoration(
-                      color: AppColors.butter,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.edit_outlined,
-                      size: 11,
-                      color: AppColors.burgundy,
-                    ),
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            character,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.cocoa,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.mutedText,
-              fontSize: 10,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

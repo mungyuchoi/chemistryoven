@@ -3,22 +3,22 @@ import 'package:flutter/foundation.dart';
 class DemoSessionController extends ChangeNotifier {
   bool _isLoggedIn = false;
   bool _hasCompletedOnboarding = false;
-  String _displayName = '지윤';
+  String _displayName = '참가자 A';
 
   bool get isLoggedIn => _isLoggedIn;
   bool get isGuest => !_isLoggedIn;
   bool get hasCompletedOnboarding => _hasCompletedOnboarding;
   String get displayName => _displayName;
-  String get maskedPhone => '010-****-2398';
+  String get maskedPhone => '010-****-0000';
 
-  void loginAsDemoUser({String displayName = '지윤'}) {
+  void loginAsDemoUser({String displayName = '참가자 A'}) {
     _displayName = displayName;
     _isLoggedIn = true;
     notifyListeners();
   }
 
   void completeOnboarding() {
-    _displayName = '지윤';
+    _displayName = '참가자 A';
     _isLoggedIn = true;
     _hasCompletedOnboarding = true;
     notifyListeners();
@@ -32,7 +32,7 @@ class DemoSessionController extends ChangeNotifier {
   void resetGuest() {
     _isLoggedIn = false;
     _hasCompletedOnboarding = false;
-    _displayName = '지윤';
+    _displayName = '참가자 A';
     notifyListeners();
   }
 }

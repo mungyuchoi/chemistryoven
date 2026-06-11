@@ -25,6 +25,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
   final Map<OnboardingStep, Set<String>> _selected = {
+    OnboardingStep.account: {'휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의'},
     OnboardingStep.basicInfo: {'남성', '서울 강남권'},
     OnboardingStep.rhythm: {'IT/개발', '평일 주간', '토요일 오후', '일요일 오후'},
     OnboardingStep.conversation: {
@@ -44,6 +45,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       '크림',
       '구움과자',
     },
+    OnboardingStep.lifestyle: {'크림', '구움과자', '커피 페어링', '가볍게 한 잔', '비흡연'},
     OnboardingStep.keywords: {'다정한', '성실한', '배려 깊은', '천천히 깊어지는 사람'},
     OnboardingStep.preferences: {
       'age:any',
@@ -54,6 +56,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'religion:상관없음',
       'job:없음',
     },
+    OnboardingStep.profilePreview: {'공개 프로필 확인', 'AI 문장 보정 완료', '운영진 확인 정보 분리'},
   };
 
   List<OnboardingStep> get _steps => OnboardingStep.values;
@@ -85,11 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final choices = appState.repository.fetchOnboardingChoices();
     final character = appState.repository.fetchFeaturedCharacter();
     final isResultStep = _step == OnboardingStep.result;
-    final progress = _step == OnboardingStep.intro
-        ? 1 / _steps.length
-        : _step == OnboardingStep.result
-        ? 1.0
-        : _index / 7;
+    final progress = (_index + 1) / _steps.length;
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -193,6 +192,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ..remove('여성')
           ..add(value);
         return;
+      }
+      if (step == OnboardingStep.lifestyle) {
+        const drinking = {'술 거의 안 마심', '가볍게 한 잔'};
+        const smoking = {'비흡연', '흡연 상관없음'};
+        if (drinking.contains(value)) {
+          values
+            ..removeAll(drinking)
+            ..add(value);
+          return;
+        }
+        if (smoking.contains(value)) {
+          values
+            ..removeAll(smoking)
+            ..add(value);
+          return;
+        }
       }
       if (step == OnboardingStep.rhythm &&
           const {'평일 주간', '교대근무', '주말근무', '프리랜서형'}.contains(value)) {
@@ -458,6 +473,79 @@ class _IntroStep extends StatelessWidget {
   }
 }
 
+class _AccountStep extends StatelessWidget {
+  const _AccountStep({required this.selected, required this.onToggle});
+
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    const accountOptions = ['휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의', '마케팅 알림 선택'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppCard(
+          color: Colors.white,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _FieldLabel('휴대폰 인증'),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: '010-****-0000',
+                readOnly: true,
+                decoration: const InputDecoration(
+                  suffixIcon: Icon(
+                    Icons.check_circle,
+                    color: AppColors.success,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const _FieldLabel('로그인 ID'),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: 'applicant.a@example.com',
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(hintText: '이메일을 입력해주세요'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final option in accountOptions)
+              _OnboardingPill(
+                selected: selected.contains(option),
+                label: option,
+                onTap: () => onToggle(option),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        AppCard(
+          color: AppColors.blush.withValues(alpha: 0.72),
+          borderColor: AppColors.rose,
+          padding: const EdgeInsets.all(14),
+          child: Text(
+            '비회원은 홈과 일정을 둘러볼 수 있고, 신청은 휴대폰 인증과 케미 레시피 작성 후 가능해요.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.cocoa,
+              height: 1.55,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _QuestionStep extends StatelessWidget {
   const _QuestionStep({
     required this.step,
@@ -473,6 +561,12 @@ class _QuestionStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (step == OnboardingStep.account) {
+      return _AccountStep(
+        selected: selected,
+        onToggle: (value) => onToggle(step, value),
+      );
+    }
     if (step == OnboardingStep.basicInfo) {
       return _BasicInfoStep(
         selected: selected,
@@ -497,6 +591,12 @@ class _QuestionStep extends StatelessWidget {
         onToggle: (value) => onToggle(step, value),
       );
     }
+    if (step == OnboardingStep.lifestyle) {
+      return _LifestyleStep(
+        selected: selected,
+        onToggle: (value) => onToggle(step, value),
+      );
+    }
     if (step == OnboardingStep.keywords) {
       return _KeywordsStep(
         selected: selected,
@@ -505,6 +605,12 @@ class _QuestionStep extends StatelessWidget {
     }
     if (step == OnboardingStep.preferences) {
       return _PreferenceStep(
+        selected: selected,
+        onToggle: (value) => onToggle(step, value),
+      );
+    }
+    if (step == OnboardingStep.profilePreview) {
+      return _ProfilePreviewStep(
         selected: selected,
         onToggle: (value) => onToggle(step, value),
       );
@@ -527,6 +633,301 @@ class _QuestionStep extends StatelessWidget {
                 onTap: () => onToggle(step, choice),
               ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LifestyleStep extends StatelessWidget {
+  const _LifestyleStep({required this.selected, required this.onToggle});
+
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    const dessertPrefs = ['초콜릿', '과일', '크림', '담백한 빵', '커피 페어링', '구움과자'];
+    const drinkPrefs = ['술 거의 안 마심', '가볍게 한 잔'];
+    const smokePrefs = ['비흡연', '흡연 상관없음'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel('디저트 취향'),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final pref in dessertPrefs)
+              _OnboardingPill(
+                selected: selected.contains(pref),
+                label: pref,
+                onTap: () => onToggle(pref),
+              ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        const _FieldLabel('주량'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (final pref in drinkPrefs) ...[
+              Expanded(
+                child: _PreferenceCard(
+                  label: pref,
+                  icon: Icons.local_bar_outlined,
+                  selected: selected.contains(pref),
+                  onTap: () => onToggle(pref),
+                ),
+              ),
+              if (pref != drinkPrefs.last) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+        const SizedBox(height: 18),
+        const _FieldLabel('흡연'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (final pref in smokePrefs) ...[
+              Expanded(
+                child: _PreferenceCard(
+                  label: pref,
+                  icon: pref == '비흡연'
+                      ? Icons.smoke_free_outlined
+                      : Icons.info_outline,
+                  selected: selected.contains(pref),
+                  onTap: () => onToggle(pref),
+                ),
+              ),
+              if (pref != smokePrefs.last) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+        const SizedBox(height: 18),
+        AppCard(
+          color: Colors.white,
+          padding: const EdgeInsets.all(14),
+          child: Text(
+            '알레르기와 음료 선호는 운영진 확인용으로만 쓰이며, 회차 안내와 베이킹 메뉴 준비에 반영돼요.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(height: 1.55),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PreferenceCard extends StatelessWidget {
+  const _PreferenceCard({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.burgundy : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: selected ? AppColors.gold : AppColors.line,
+          width: selected ? 1.4 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: selected ? AppColors.butter : AppColors.brandRed,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: selected ? Colors.white : AppColors.cocoa,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfilePreviewStep extends StatelessWidget {
+  const _ProfilePreviewStep({required this.selected, required this.onToggle});
+
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    const checks = [
+      '공개 프로필 확인',
+      'AI 문장 보정 완료',
+      '운영진 확인 정보 분리',
+      '오브닝 닉네임 자동 배정',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppCard(
+          color: AppColors.butter.withValues(alpha: 0.62),
+          borderColor: AppColors.line,
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'PUBLIC PREVIEW',
+                style: TextStyle(
+                  color: AppColors.burgundy,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '천천히 깊어지는 대화를 좋아하는 사람',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppColors.burgundy,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '처음에는 차분하지만 편해지면 취향과 일상 이야기를 자연스럽게 나누는 타입이에요.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.cocoa,
+                  height: 1.55,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _PreviewChip('감성'),
+                  _PreviewChip('진중'),
+                  _PreviewChip('카페'),
+                  _PreviewChip('구움과자'),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        AppCard(
+          color: Colors.white,
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            children: const [
+              _PreviewRow(label: '상대에게 공개', value: '닉네임 · 나이대 · 직군 · 키워드'),
+              Divider(height: 18, color: AppColors.line),
+              _PreviewRow(label: '운영진만 확인', value: '실명 · 연락처 · 인증자료 · 선호조건'),
+              Divider(height: 18, color: AppColors.line),
+              _PreviewRow(
+                label: 'AI 분석 사용',
+                value: '성향 · 대화스타일 · 취향 · 이상형 키워드',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final check in checks)
+              _OnboardingPill(
+                selected: selected.contains(check),
+                label: check,
+                onTap: () => onToggle(check),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PreviewChip extends StatelessWidget {
+  const _PreviewChip(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.64),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.burgundy,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewRow extends StatelessWidget {
+  const _PreviewRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 96,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.cocoa,
+              fontWeight: FontWeight.w800,
+              height: 1.4,
+            ),
+          ),
         ),
       ],
     );
@@ -558,7 +959,7 @@ class _BasicInfoStep extends StatelessWidget {
         const _FieldLabel('이름'),
         const SizedBox(height: 8),
         TextFormField(
-          initialValue: '김지윤',
+          initialValue: '신청자 A',
           textInputAction: TextInputAction.next,
           style: const TextStyle(
             color: AppColors.cocoa,
@@ -2546,7 +2947,7 @@ class _PhoneVerificationCard extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  '010-****-2398',
+                  '010-****-0000',
                   style: TextStyle(
                     color: AppColors.mutedText,
                     fontSize: 13,

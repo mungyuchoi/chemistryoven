@@ -159,8 +159,8 @@ const demoApplicants = <DemoApplicant>[
 const demoRounds = <EventRound>[
   EventRound(
     id: 'round-1',
-    title: '캐릭터 닉네임 공개',
-    description: '회차 전용 닉네임과 좌석을 확인합니다.',
+    title: '입장 안내',
+    description: '닉네임과 시작 좌석을 확인하고 오브닝을 엽니다.',
     status: '대기',
     order: 0,
   ),
@@ -173,8 +173,8 @@ const demoRounds = <EventRound>[
   ),
   EventRound(
     id: 'round-3',
-    title: '소셜 베이킹',
-    description: '함께 디저트를 만들며 자연스러운 대화를 이어갑니다.',
+    title: '로테이션 대화',
+    description: '전원이 1:1로 짧게 대화하고 옆자리 정보를 확인합니다.',
     status: '대기',
     order: 2,
   ),
@@ -187,10 +187,31 @@ const demoRounds = <EventRound>[
   ),
   EventRound(
     id: 'round-5',
+    title: '자리배치',
+    description: '중간 선택과 케미 점수 기반으로 새 테이블을 안내합니다.',
+    status: '대기',
+    order: 4,
+  ),
+  EventRound(
+    id: 'round-6',
+    title: '페어 베이킹',
+    description: '배정된 파트너와 디저트를 만들며 협업 케미를 확인합니다.',
+    status: '대기',
+    order: 5,
+  ),
+  EventRound(
+    id: 'round-7',
     title: '최종 선택',
     description: '상호 매칭을 위한 마지막 선택과 메시지를 제출합니다.',
     status: '대기',
-    order: 4,
+    order: 6,
+  ),
+  EventRound(
+    id: 'round-8',
+    title: '매칭 결과',
+    description: '상호 선택 결과와 케미 리포트 발송 상태를 확인합니다.',
+    status: '대기',
+    order: 7,
   ),
 ];
 
@@ -524,6 +545,7 @@ const demoCharacters = <ChemistryCharacter>[
 ];
 
 const demoOnboardingChoices = <OnboardingStep, List<String>>{
+  OnboardingStep.account: ['휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의', '마케팅 알림 선택'],
   OnboardingStep.basicInfo: ['남성', '여성', '서울 강남권', '서울 강북권', '경기 서부', '인천'],
   OnboardingStep.rhythm: [
     'IT/개발',
@@ -556,6 +578,18 @@ const demoOnboardingChoices = <OnboardingStep, List<String>>{
     '산책',
     '요리',
   ],
+  OnboardingStep.lifestyle: [
+    '초콜릿',
+    '과일',
+    '크림',
+    '담백한 빵',
+    '커피 페어링',
+    '구움과자',
+    '술 거의 안 마심',
+    '가볍게 한 잔',
+    '비흡연',
+    '흡연 상관없음',
+  ],
   OnboardingStep.keywords: [
     '다정한',
     '성실한',
@@ -582,6 +616,12 @@ const demoOnboardingChoices = <OnboardingStep, List<String>>{
     '기독교',
     '같은 직장군',
     '영업직',
+  ],
+  OnboardingStep.profilePreview: [
+    '공개 프로필 확인',
+    'AI 문장 보정 완료',
+    '운영진 확인 정보 분리',
+    '오브닝 닉네임 자동 배정',
   ],
   OnboardingStep.verification: [
     '휴대폰 인증 완료',

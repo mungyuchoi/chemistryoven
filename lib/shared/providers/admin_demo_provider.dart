@@ -135,11 +135,23 @@ class AdminDemoProvider extends ChangeNotifier {
       case 1:
         _flowProvider.syncFromAdmin(DemoFlowStep.firstImpressionChoice);
         break;
+      case 2:
+        _flowProvider.syncFromAdmin(DemoFlowStep.rotationTalk);
+        break;
       case 3:
         _flowProvider.syncFromAdmin(DemoFlowStep.middleChoice);
         break;
       case 4:
+        _flowProvider.syncFromAdmin(DemoFlowStep.seatingGuide);
+        break;
+      case 5:
+        _flowProvider.syncFromAdmin(DemoFlowStep.pairBaking);
+        break;
+      case 6:
         _flowProvider.syncFromAdmin(DemoFlowStep.finalChoice);
+        break;
+      case 7:
+        _flowProvider.syncFromAdmin(DemoFlowStep.matchResult);
         break;
     }
     notifyListeners();

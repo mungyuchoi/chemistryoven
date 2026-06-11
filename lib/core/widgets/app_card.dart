@@ -9,6 +9,7 @@ class AppCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(18),
     this.color,
     this.borderColor = AppColors.line,
+    this.borderRadius = 18,
     super.key,
   });
 
@@ -17,13 +18,14 @@ class AppCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final Color? color;
   final Color borderColor;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: color ?? AppColors.ivory,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(borderRadius),
         side: BorderSide(color: borderColor),
       ),
       clipBehavior: Clip.antiAlias,

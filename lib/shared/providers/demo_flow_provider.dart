@@ -55,6 +55,9 @@ class DemoFlowProvider extends ChangeNotifier {
       case DemoFlowStep.paymentWaiting:
       case DemoFlowStep.confirmed:
       case DemoFlowStep.nicknameCheck:
+      case DemoFlowStep.rotationTalk:
+      case DemoFlowStep.seatingGuide:
+      case DemoFlowStep.pairBaking:
       case DemoFlowStep.matchResult:
       case DemoFlowStep.chemistryReport:
       case DemoFlowStep.review:
@@ -121,10 +124,10 @@ class DemoFlowProvider extends ChangeNotifier {
     _prefillChoiceIfNeeded();
     switch (_currentStep) {
       case DemoFlowStep.firstImpressionChoice:
-        _currentStep = DemoFlowStep.middleChoice;
+        _currentStep = DemoFlowStep.rotationTalk;
         break;
       case DemoFlowStep.middleChoice:
-        _currentStep = DemoFlowStep.finalChoice;
+        _currentStep = DemoFlowStep.seatingGuide;
         break;
       case DemoFlowStep.finalChoice:
         _currentStep = DemoFlowStep.matchResult;
@@ -137,6 +140,9 @@ class DemoFlowProvider extends ChangeNotifier {
       case DemoFlowStep.paymentWaiting:
       case DemoFlowStep.confirmed:
       case DemoFlowStep.nicknameCheck:
+      case DemoFlowStep.rotationTalk:
+      case DemoFlowStep.seatingGuide:
+      case DemoFlowStep.pairBaking:
       case DemoFlowStep.matchResult:
       case DemoFlowStep.chemistryReport:
       case DemoFlowStep.review:

@@ -89,11 +89,29 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('첫인상 선택 제출하기'));
     await tester.pumpAndSettle();
-    expect(find.text('중간 선택'), findsWidgets);
+    expect(find.text('옆자리 대화를 시작해요.'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('중간 선택 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('중간 선택 열기'));
+    await tester.pumpAndSettle();
+    expect(find.text('다시 이야기해보고 싶은 분은?'), findsOneWidget);
 
     await tester.ensureVisible(find.text('중간 선택 제출'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('중간 선택 제출'));
+    await tester.pumpAndSettle();
+    expect(find.text('다음 자리가 준비되었어요.'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('페어 베이킹 시작'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('페어 베이킹 시작'));
+    await tester.pumpAndSettle();
+    expect(find.text('함께 만들며 케미를 확인해요.'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('최종 선택 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('최종 선택 열기'));
     await tester.pumpAndSettle();
     expect(find.text('마지막으로 마음을 전할 분은?'), findsOneWidget);
 
@@ -114,7 +132,11 @@ void main() {
     await tester.tap(find.byIcon(Icons.admin_panel_settings_outlined).first);
     await tester.pumpAndSettle();
 
-    expect(find.text('오늘의 회차를 준비할 시간이에요.'), findsOneWidget);
+    expect(find.textContaining('오늘의 회차를'), findsOneWidget);
+    expect(find.byType(Checkbox), findsOneWidget);
+    final loginButton = find.widgetWithText(ElevatedButton, '로그인');
+    expect(tester.getSize(loginButton).width, greaterThan(300));
+    expect(tester.getSize(loginButton).height, 56);
 
     await tester.ensureVisible(find.text('로그인'));
     await tester.pumpAndSettle();
@@ -131,6 +153,8 @@ void main() {
     expect(tester.getCenter(find.text('선정중 1')).dy, sessionFilterY);
     expect(tester.getCenter(find.text('확정 2')).dy, sessionFilterY);
     expect(tester.getCenter(find.text('종료 1')).dy, sessionFilterY);
+    expect(tester.getSize(find.text('모집중 2')).width, greaterThan(46));
+    expect(tester.getSize(find.text('선정중 1')).width, greaterThan(46));
     expect(find.text('오픈예정'), findsOneWidget);
     expect(find.text('기획중'), findsOneWidget);
 
@@ -144,7 +168,7 @@ void main() {
     await tester.tap(find.text('신청자'));
     await tester.pumpAndSettle();
     expect(find.text('신청자'), findsWidgets);
-    expect(find.text('이지윤'), findsWidgets);
+    expect(find.text('지원자 E'), findsWidgets);
     final applicantFilterY = tester.getCenter(find.text('전체 34')).dy;
     expect(tester.getCenter(find.text('신규 6')).dy, applicantFilterY);
     expect(tester.getCenter(find.text('인증 대기 5')).dy, applicantFilterY);
@@ -157,11 +181,11 @@ void main() {
     await tester.tap(find.text('케미 높은순'));
     await tester.pumpAndSettle();
     expect(
-      tester.getTopLeft(find.text('이지윤').first).dy,
-      lessThan(tester.getTopLeft(find.text('박서준').first).dy),
+      tester.getTopLeft(find.text('지원자 E').first).dy,
+      lessThan(tester.getTopLeft(find.text('지원자 B').first).dy),
     );
 
-    await tester.tap(find.text('이지윤').first);
+    await tester.tap(find.text('지원자 E').first);
     await tester.pumpAndSettle();
     expect(find.text('케미 분석 (운영 전용)'), findsOneWidget);
     expect(
@@ -182,10 +206,34 @@ void main() {
           .width,
       lessThan(70),
     );
+    expect(
+      (tester
+                  .getCenter(
+                    find.byKey(const ValueKey('applicant-status-인증 완료')),
+                  )
+                  .dy -
+              tester.getCenter(find.text('인증 완료')).dy)
+          .abs(),
+      lessThanOrEqualTo(1),
+    );
+    expect(
+      (tester
+                  .getCenter(
+                    find.byKey(const ValueKey('applicant-status-선정 후보')),
+                  )
+                  .dy -
+              tester.getCenter(find.text('선정 후보')).dy)
+          .abs(),
+      lessThanOrEqualTo(1),
+    );
 
     await tester.tap(find.text('매칭'));
     await tester.pumpAndSettle();
     expect(find.text('인원 선정'), findsOneWidget);
+    expect(find.text('크루아상'), findsOneWidget);
+    expect(find.text('소금빵'), findsOneWidget);
+    expect(find.text('티라미수'), findsOneWidget);
+    expect(find.text('에그타르트'), findsOneWidget);
     final selectionModeY = tester.getCenter(find.text('후보 풀')).dy;
     expect(tester.getCenter(find.text('케미 조합')).dy, selectionModeY);
     expect(tester.getCenter(find.text('밸런스')).dy, selectionModeY);
@@ -253,7 +301,7 @@ void main() {
     await tester.tap(find.text('케미 조합보기'));
     await tester.pumpAndSettle();
     expect(find.text('케미 조합'), findsOneWidget);
-    expect(find.text('이지윤'), findsOneWidget);
+    expect(find.text('지원자 E'), findsOneWidget);
     expect(find.text('선정됨'), findsOneWidget);
     expect(find.text('잘 맞는 남성 Top 4'), findsOneWidget);
     expect(find.textContaining('잘 맞는 여성'), findsNothing);
@@ -287,6 +335,42 @@ void main() {
     await tester.tap(find.text('수동 편집'));
     await tester.pumpAndSettle();
     expect(find.text('자리 수동 편집'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A1-character'))).data,
+      '크루아상',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A1-name'))).data,
+      '지원자 A',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A3-character'))).data,
+      '소금빵',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A3-name'))).data,
+      '지원자 B',
+    );
+
+    await tester.tap(find.byKey(const ValueKey('seat-A3')));
+    await tester.pumpAndSettle();
+    expect(find.text('A1 ↔ A3 변경됨'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A1-character'))).data,
+      '소금빵',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A1-name'))).data,
+      '지원자 B',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A3-character'))).data,
+      '크루아상',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('seat-A3-name'))).data,
+      '지원자 A',
+    );
 
     await tester.ensureVisible(find.text('변경 저장'));
     await tester.pumpAndSettle();
