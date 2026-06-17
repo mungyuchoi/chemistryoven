@@ -150,6 +150,24 @@ class _ClassDetailScreen extends StatelessWidget {
                           const _DetailSectionLabel('신청 조건'),
                           const SizedBox(height: 10),
                           const _ApplicationConditionCard(),
+                          const SizedBox(height: 20),
+                          const _DetailSectionLabel(
+                            '오늘의 베이킹 품목',
+                            sub: '운영진이 회차마다 등록해요',
+                          ),
+                          const SizedBox(height: 10),
+                          const _BakingItemCard(),
+                          const SizedBox(height: 20),
+                          const _DetailSectionLabel(
+                            '함께할 분들',
+                            sub: '3:3 모집이 완료되면 공개돼요',
+                          ),
+                          const SizedBox(height: 10),
+                          const _ApplicantRevealCard(),
+                          const SizedBox(height: 20),
+                          const _DetailSectionLabel('유의사항 · 환불 규정'),
+                          const SizedBox(height: 10),
+                          const _RefundPolicyCard(),
                           const SizedBox(height: 10),
                         ],
                       ),
@@ -425,19 +443,36 @@ class _InfoDivider extends StatelessWidget {
 }
 
 class _DetailSectionLabel extends StatelessWidget {
-  const _DetailSectionLabel(this.label);
+  const _DetailSectionLabel(this.label, {this.sub});
 
   final String label;
+  final String? sub;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(
-        color: AppColors.chocolate,
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.chocolate,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (sub != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            sub!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1156,6 +1191,377 @@ class _Weekday extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w400,
         ),
+      ),
+    );
+  }
+}
+
+class _BakingItemCard extends StatelessWidget {
+  const _BakingItemCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white.withValues(alpha: 0.72),
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            height: 130,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(color: AppColors.parchment),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.ivory.withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text(
+                'BAKING ITEM PHOTO · 운영진 업로드',
+                style: TextStyle(
+                  color: AppColors.burgundy,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '마들렌 · 휘낭시에',
+                  style: TextStyle(
+                    color: AppColors.cocoa,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '페어와 함께 두 가지를 구워요 · 재료·도구 모두 현장 준비',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.mutedText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApplicantRevealCard extends StatelessWidget {
+  const _ApplicantRevealCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white.withValues(alpha: 0.72),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '현재 모집 4 : 4',
+                      style: TextStyle(
+                        color: AppColors.cocoa,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      '3:3 완료 · 신청 현황 공개됨',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE4F5E8),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  '공개',
+                  style: TextStyle(
+                    color: AppColors.success,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: 8,
+              color: AppColors.parchment.withValues(alpha: 0.7),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: 0.8,
+                child: Container(color: AppColors.burgundy),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '최소 3:3',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.mutedText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const Text(
+                '기본 5:5',
+                style: TextStyle(
+                  color: AppColors.burgundy,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '최대 10:10',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.mutedText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const _AgeDotPlot(
+            min: 26,
+            max: 40,
+            male: [31, 33, 34, 36],
+            female: [28, 29, 31, 32],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '상세 프로필은 회차 당일 캐릭터 닉네임으로 공개돼요. 신청은 접수 순서에 맞춰 진행돼요.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              fontSize: 11,
+              height: 1.6,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgeDotPlot extends StatelessWidget {
+  const _AgeDotPlot({
+    required this.min,
+    required this.max,
+    required this.male,
+    required this.female,
+  });
+
+  final int min;
+  final int max;
+  final List<int> male;
+  final List<int> female;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AgeDotRow(
+          label: '남',
+          color: AppColors.burgundy,
+          min: min,
+          max: max,
+          ages: male,
+        ),
+        const SizedBox(height: 8),
+        _AgeDotRow(
+          label: '여',
+          color: AppColors.caramel,
+          min: min,
+          max: max,
+          ages: female,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '만 $min세',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontSize: 10,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            Text(
+              '만 $max세',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontSize: 10,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AgeDotRow extends StatelessWidget {
+  const _AgeDotRow({
+    required this.label,
+    required this.color,
+    required this.min,
+    required this.max,
+    required this.ages,
+  });
+
+  final String label;
+  final Color color;
+  final int min;
+  final int max;
+  final List<int> ages;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 16,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const dotSize = 10.0;
+              final span = (max - min).clamp(1, 999);
+              final track = constraints.maxWidth - dotSize;
+              return SizedBox(
+                height: dotSize,
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        height: 2,
+                        color: AppColors.line,
+                      ),
+                    ),
+                    for (final age in ages)
+                      Positioned(
+                        left:
+                            ((age - min).clamp(0, span) / span) * track,
+                        top: 0,
+                        child: Container(
+                          width: dotSize,
+                          height: dotSize,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RefundPolicyCard extends StatelessWidget {
+  const _RefundPolicyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    const lines = [
+      '선정 발표 후 24시간 내 입금이 확인되어야 최종 확정됩니다.',
+      '행사 7일 전까지: 전액 환불 / 3일 전: 50% / 이후: 환불 불가',
+      '견과류 · 글루텐 알레르기는 신청서에 반드시 표기 부탁드려요.',
+    ];
+
+    return AppCard(
+      color: Colors.white.withValues(alpha: 0.72),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final line in lines) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '·',
+                  style: TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 12,
+                    height: 1.7,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    line,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.mutedText,
+                      fontSize: 12,
+                      height: 1.7,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (line != lines.last) const SizedBox(height: 4),
+          ],
+        ],
       ),
     );
   }

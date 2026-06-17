@@ -14,13 +14,26 @@ class DemoFlowProvider extends ChangeNotifier {
   String _finalMessage = '오늘 대화가 편안해서 조금 더 알아가 보고 싶어요.';
   bool _reviewWritten = false;
 
+  // 로테이션 단계에서 현재 선택된 상대 닉네임.
+  String _rotationSelection = '소금빵';
+  // 로테이션 장점 평가: '닉네임::장점' -> true(좋아요)/false(싫어요).
+  final Map<String, bool> _traitVotes = <String, bool>{};
+  // 최종 선택 2순위 닉네임.
+  String? _finalSecondChoice;
+
   List<DemoFlowStep> get steps => DemoFlowStep.values;
   DemoFlowStep get currentStep => _currentStep;
   int get currentIndex => steps.indexOf(_currentStep);
   bool get reviewWritten => _reviewWritten;
   String get finalMessage => _finalMessage;
+  String get rotationSelection => _rotationSelection;
+  String? get finalSecondChoice => _finalSecondChoice;
   Map<ChoicePhase, String> get selectedChoices =>
       Map.unmodifiable(_selectedChoices);
+
+  bool? traitVote(String nickname, String trait) {
+    return _traitVotes['$nickname::$trait'];
+  }
 
   ChemistryClass get featuredClass => _repository.fetchFeaturedClass();
 
@@ -115,6 +128,27 @@ class DemoFlowProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void selectRotationPartner(String nickname) {
+    _rotationSelection = nickname;
+    notifyListeners();
+  }
+
+  // 같은 버튼을 다시 누르면 평가를 해제하는 토글 동작.
+  void toggleTraitVote(String nickname, String trait, bool like) {
+    final key = '$nickname::$trait';
+    if (_traitVotes[key] == like) {
+      _traitVotes.remove(key);
+    } else {
+      _traitVotes[key] = like;
+    }
+    notifyListeners();
+  }
+
+  void selectFinalSecondChoice(String? nickname) {
+    _finalSecondChoice = nickname;
+    notifyListeners();
+  }
+
   void updateFinalMessage(String message) {
     _finalMessage = message;
     notifyListeners();
@@ -173,6 +207,9 @@ class DemoFlowProvider extends ChangeNotifier {
     _selectedChoices.clear();
     _reviewWritten = false;
     _finalMessage = '오늘 대화가 편안해서 조금 더 알아가 보고 싶어요.';
+    _rotationSelection = '소금빵';
+    _traitVotes.clear();
+    _finalSecondChoice = null;
     notifyListeners();
   }
 

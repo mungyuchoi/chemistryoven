@@ -39,6 +39,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   _AdminApplicantData _selectedApplicant = _adminApplicants[4];
   int _applicantStatusFilter = 0;
   int _applicantSort = 0;
+  int _applicantTab = 0;
   int _selectionPoolMode = 0;
   _AdminScreen _reviewsBackTarget = _AdminScreen.matchResult;
   int _menCount = 4;
@@ -419,6 +420,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           onOpenApplicant: (applicant) {
             setState(() {
               _selectedApplicant = applicant;
+              _applicantTab = 0;
               _screen = _AdminScreen.applicantDetail;
             });
           },
@@ -874,6 +876,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onTap: () {
               setState(() {
                 _selectedApplicant = applicant;
+                _applicantTab = 0;
                 _screen = _AdminScreen.applicantDetail;
               });
             },
@@ -987,65 +990,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        const Row(
+        Row(
           children: [
-            Expanded(child: _AdminChip(label: '프로필', selected: true)),
-            SizedBox(width: 8),
-            Expanded(child: _AdminChip(label: '선호 조건')),
-            SizedBox(width: 8),
-            Expanded(child: _AdminChip(label: '답변')),
+            Expanded(
+              child: _AdminChip(
+                label: '프로필',
+                selected: _applicantTab == 0,
+                onTap: () => setState(() => _applicantTab = 0),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _AdminChip(
+                label: '선호 조건',
+                selected: _applicantTab == 1,
+                onTap: () => setState(() => _applicantTab = 1),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _AdminChip(
+                label: '답변',
+                selected: _applicantTab == 2,
+                onTap: () => setState(() => _applicantTab = 2),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _InfoLine(
-                icon: Icons.person_outline,
-                label: '이름',
-                value: applicant.name,
-              ),
-              const _DividerLine(),
-              const _InfoLine(
-                icon: Icons.phone_iphone_outlined,
-                label: '연락처',
-                value: '010-****-0000',
-              ),
-              const _DividerLine(),
-              const _InfoLine(
-                icon: Icons.place_outlined,
-                label: '지역',
-                value: '서울 강남권',
-              ),
-              const _DividerLine(),
-              const _InfoLine(
-                icon: Icons.favorite_border_rounded,
-                label: '종교',
-                value: '무교',
-              ),
-              const _DividerLine(),
-              _InfoLine(
-                icon: Icons.auto_awesome_outlined,
-                label: '기본 캐릭터',
-                value: applicant.character,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        AppCard(
-          color: AppColors.ivory,
-          padding: const EdgeInsets.all(14),
-          child: Text(
-            '운영 메모\n7기 미선정, 8기는 디자인 동종 풀의 균형 후보로 도움 가능.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.cocoa,
-              height: 1.5,
-            ),
-          ),
-        ),
+        if (_applicantTab == 0) ..._applicantProfilePanel(context, applicant),
+        if (_applicantTab == 1) ..._applicantPrefPanel(context),
+        if (_applicantTab == 2) ..._applicantAnswerPanel(context),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -1067,6 +1042,203 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
       ],
     );
+  }
+
+  List<Widget> _applicantProfilePanel(
+    BuildContext context,
+    _AdminApplicantData applicant,
+  ) {
+    return [
+      AppCard(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _InfoLine(
+              icon: Icons.person_outline,
+              label: '이름',
+              value: applicant.name,
+            ),
+            const _DividerLine(),
+            const _InfoLine(
+              icon: Icons.phone_iphone_outlined,
+              label: '연락처',
+              value: '010-****-0000',
+            ),
+            const _DividerLine(),
+            const _InfoLine(
+              icon: Icons.place_outlined,
+              label: '지역',
+              value: '서울 강남권',
+            ),
+            const _DividerLine(),
+            const _InfoLine(
+              icon: Icons.favorite_border_rounded,
+              label: '종교',
+              value: '무교',
+            ),
+            const _DividerLine(),
+            _InfoLine(
+              icon: Icons.auto_awesome_outlined,
+              label: '기본 캐릭터',
+              value: applicant.character,
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      AppCard(
+        color: AppColors.ivory,
+        padding: const EdgeInsets.all(14),
+        child: Text(
+          '운영 메모\n7기 미선정, 8기는 디자인 동종 풀의 균형 후보로 도움 가능.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.cocoa,
+            height: 1.5,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _applicantPrefPanel(BuildContext context) {
+    return [
+      _PanelNote(
+        child: RichText(
+          text: TextSpan(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              height: 1.55,
+              fontSize: 11.5,
+            ),
+            children: const [
+              TextSpan(
+                text: 'STRICT 조건',
+                style: TextStyle(
+                  color: AppColors.burgundy,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              TextSpan(
+                text:
+                    ' · 신청자가 직접 입력한 선호값이에요. 흡연·주량·기피직군·나이 불충족 시 '
+                    '하드 필터링(매칭 제외) 대상이 돼요. 상대에게는 공개되지 않아요.',
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      AppCard(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: const [
+            _InfoLine(
+              icon: Icons.person_outline,
+              label: '선호 나이대',
+              value: '30 ~ 36세',
+            ),
+            _DividerLine(),
+            _InfoLine(
+              icon: Icons.straighten_outlined,
+              label: '이상형 키',
+              value: '175cm 이상',
+            ),
+            _DividerLine(),
+            _InfoLine(
+              icon: Icons.auto_awesome_outlined,
+              label: '선호 MBTI',
+              value: 'ENFP · ENTJ · ESTP',
+            ),
+            _DividerLine(),
+            _InfoLine(
+              icon: Icons.favorite_border_rounded,
+              label: '선호 종교',
+              value: '무교 · 상관없음',
+            ),
+            _DividerLine(),
+            _InfoLine(
+              icon: Icons.shield_outlined,
+              label: '기피 직군',
+              value: '같은 직군(디자인)',
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Expanded(
+            child: _PrefMatchBox(label: '선호 나이대', value: '충족', tone: 0),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: _PrefMatchBox(label: '이상형 키', value: '충족', tone: 0),
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Expanded(
+            child: _PrefMatchBox(label: '선호 MBTI', value: '부분 충족', tone: 1),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: _PrefMatchBox(label: '기피 직군', value: '회피 필요', tone: 2),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _applicantAnswerPanel(BuildContext context) {
+    return [
+      _PanelNote(
+        child: Text(
+          '온보딩 설문에서 신청자가 고른 답변 원본이에요. '
+          'PSYCHOLOGY 점수(궁합·가치관·취향·베이킹 리듬) 산출에 사용돼요.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.mutedText,
+            height: 1.55,
+            fontSize: 11.5,
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      const _AnswerBlock(
+        title: '일상 리듬',
+        chips: ['저녁형', '주 2~3회 운동', '집·카페 선호'],
+      ),
+      const _AnswerBlock(
+        title: '취향 케미',
+        chips: ['전시·미술관', '플레이리스트 공유', '여행 계획형', '글쓰기'],
+      ),
+      const _AnswerBlock(
+        title: '참여 가능 시간대',
+        chips: ['토요일 오후', '일요일 오후'],
+      ),
+      const _AnswerBlock(
+        title: '디저트 · 주량 · 흡연',
+        chips: ['까눌레·휘낭시에', '와인 1~2잔', '비흡연'],
+      ),
+      const _AnswerBlock(
+        title: '호감 포인트',
+        chips: ['대화의 결', '취향 존중', '말투의 다정함'],
+      ),
+      const _AnswerBlock(
+        title: '불편하게 느끼는 요소',
+        chips: ['소비 성향이 너무 다른 것', '예의 없는 말투'],
+        warn: true,
+      ),
+      const _AnswerBlock(
+        title: '나와 잘 맞을 것 같은 사람',
+        chips: ['웃음 코드가 맞는', '나와 다른 성향'],
+      ),
+    ];
   }
 
   Widget _buildSelectionPool(BuildContext context) {
@@ -2453,14 +2625,26 @@ class _AdminChip extends StatelessWidget {
     required this.label,
     this.selected = false,
     this.compact = false,
+    this.onTap,
   });
 
   final String label;
   final bool selected;
   final bool compact;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final chip = _buildChip(context);
+    if (onTap == null) return chip;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: chip,
+    );
+  }
+
+  Widget _buildChip(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 12 : 14,
@@ -2488,6 +2672,164 @@ class _AdminChip extends StatelessWidget {
             fontSize: compact ? 12 : 13,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PanelNote extends StatelessWidget {
+  const _PanelNote({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: AppColors.ivory,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _PrefMatchBox extends StatelessWidget {
+  const _PrefMatchBox({
+    required this.label,
+    required this.value,
+    required this.tone,
+  });
+
+  final String label;
+  final String value;
+
+  /// 0 = 충족(green), 1 = 부분 충족(neutral), 2 = 경고(orange)
+  final int tone;
+
+  @override
+  Widget build(BuildContext context) {
+    late final Color bg;
+    late final Color fg;
+    switch (tone) {
+      case 0:
+        bg = const Color(0xFFE3F1E7);
+        fg = AppColors.success;
+        break;
+      case 2:
+        bg = const Color(0xFFF8E7D6);
+        fg = AppColors.warning;
+        break;
+      default:
+        bg = AppColors.ivory;
+        fg = AppColors.mutedText;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnswerBlock extends StatelessWidget {
+  const _AnswerBlock({
+    required this.title,
+    required this.chips,
+    this.warn = false,
+  });
+
+  final String title;
+  final List<String> chips;
+  final bool warn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final chip in chips)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: warn ? const Color(0xFFF8E7D6) : AppColors.ivory,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: warn ? const Color(0xFFE7C9AE) : AppColors.line,
+                    ),
+                  ),
+                  child: Text(
+                    chip,
+                    style: TextStyle(
+                      color: warn ? AppColors.warning : AppColors.cocoa,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }

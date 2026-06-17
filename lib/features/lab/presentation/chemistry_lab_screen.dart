@@ -59,6 +59,16 @@ class ChemistryLabScreen extends StatelessWidget {
                         characters,
                         onStartOnboarding,
                       ),
+                      onOpenCriteria: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const _SelectionCriteriaScreen(),
+                        ),
+                      ),
+                      onOpenNickname: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const _NicknameInfoScreen(),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 26),
                     const _SectionLabel('최근 리포트'),
@@ -180,11 +190,15 @@ class _LabMenuGrid extends StatelessWidget {
     required this.onStartOnboarding,
     required this.onOpenCharacter,
     required this.onOpenBook,
+    required this.onOpenCriteria,
+    required this.onOpenNickname,
   });
 
   final VoidCallback onStartOnboarding;
   final VoidCallback onOpenCharacter;
   final VoidCallback onOpenBook;
+  final VoidCallback onOpenCriteria;
+  final VoidCallback onOpenNickname;
 
   @override
   Widget build(BuildContext context) {
@@ -218,13 +232,13 @@ class _LabMenuGrid extends StatelessWidget {
         icon: Icons.filter_alt_outlined,
         title: '선정 기준',
         subtitle: '회차 인원이 선정되는 방식',
-        onTap: () {},
+        onTap: onOpenCriteria,
       ),
       _LabMenuItem(
         icon: Icons.science_outlined,
         title: '닉네임 설명',
         subtitle: '오브닝 닉네임 시스템',
-        onTap: () {},
+        onTap: onOpenNickname,
       ),
     ];
 
@@ -737,6 +751,49 @@ class _CharacterDetailScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 24),
+                      const _SectionLabel('주로 나오는 MBTI'),
+                      const SizedBox(height: 10),
+                      const Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _MbtiBadge(label: 'INFJ'),
+                          _MbtiBadge(label: 'INFP'),
+                          _MbtiBadge(label: 'ENFJ'),
+                          _MbtiBadge(label: 'ISFJ'),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      const _SectionLabel('이런 캐릭터를 닮았어요'),
+                      const SizedBox(height: 10),
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: _LookalikeCard(
+                              initial: '하',
+                              name: '하울',
+                              work: '하울의 움직이는 성',
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: _LookalikeCard(
+                              initial: '아',
+                              name: '아앙',
+                              work: '아바타 아앙의 전설',
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: _LookalikeCard(
+                              initial: '하',
+                              name: '하쿠',
+                              work: '센과 치히로',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                       const _SectionLabel('잘맞는 대화 스타일'),
                       const SizedBox(height: 10),
                       const _TextPanel(
@@ -779,6 +836,13 @@ class _CharacterDetailScreen extends StatelessWidget {
                       const _TextPanel(
                         text:
                             '서두르지 않는 편이라, 처음엔 거리감이 있어 보일 수 있어요. 상대의 반응을 살피기보다 먼저 한 발 다가가는 시도가 도움이 됩니다.',
+                      ),
+                      const SizedBox(height: 24),
+                      const _SectionLabel('디자인 무드'),
+                      const SizedBox(height: 10),
+                      const _DesignMoodPanel(
+                        swatch: AppColors.brandRed,
+                        text: '버터 브라운 + 크림색 / 여러 겹의 레이어 / 부드러운 곡선형 카드',
                       ),
                       const SizedBox(height: 22),
                     ],
@@ -1032,6 +1096,134 @@ class _MatchCharacterCard extends StatelessWidget {
   }
 }
 
+class _MbtiBadge extends StatelessWidget {
+  const _MbtiBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.wine,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.gold,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _LookalikeCard extends StatelessWidget {
+  const _LookalikeCard({
+    required this.initial,
+    required this.name,
+    required this.work,
+  });
+
+  final String initial;
+  final String name;
+  final String work;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppColors.burgundy,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppColors.cocoa,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            work,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesignMoodPanel extends StatelessWidget {
+  const _DesignMoodPanel({required this.swatch, required this.text});
+
+  final Color swatch;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: AppColors.parchment,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            margin: const EdgeInsets.only(top: 3),
+            decoration: BoxDecoration(
+              color: swatch,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.cocoa,
+                height: 1.65,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MiniChip extends StatelessWidget {
   const _MiniChip({required this.label, this.filled = false});
 
@@ -1114,5 +1306,452 @@ class _RingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) {
     return oldDelegate.color != color;
+  }
+}
+
+class _InfoStepRow extends StatelessWidget {
+  const _InfoStepRow({
+    required this.icon,
+    required this.title,
+    required this.desc,
+    this.topBorder = true,
+  });
+
+  final IconData icon;
+  final String title;
+  final String desc;
+  final bool topBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        border: topBorder
+            ? const Border(top: BorderSide(color: AppColors.line))
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.ivory,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Icon(icon, size: 18, color: AppColors.burgundy),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.cocoa,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  desc,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.mutedText,
+                    height: 1.5,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LabInfoHeadline extends StatelessWidget {
+  const _LabInfoHeadline({required this.eyebrow, required this.title});
+
+  final String eyebrow;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          style: const TextStyle(
+            color: AppColors.burgundy,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.wine,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NicknameInfoScreen extends StatelessWidget {
+  const _NicknameInfoScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _DetailTopBar(title: '닉네임 설명'),
+                      const SizedBox(height: 16),
+                      const _LabInfoHeadline(
+                        eyebrow: 'NICKNAME SYSTEM',
+                        title: '오브닝에서는\n디저트 이름으로 만나요.',
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '회차 안에서는 실명 대신 디저트 캐릭터 닉네임으로 서로를 불러요. '
+                        '외모나 직업 같은 정보보다, 대화와 케미 그 자체에 집중할 수 있게요.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.cocoa,
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      AppCard(
+                        color: AppColors.wine,
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '나의 회차 닉네임',
+                              style: TextStyle(
+                                color: AppColors.gold,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: AppColors.gold.withValues(
+                                        alpha: 0.35,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'T',
+                                    style: TextStyle(
+                                      color: AppColors.gold,
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      '티라미수',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '내 기본 케미 캐릭터에서 배정돼요',
+                                      style: TextStyle(
+                                        color: AppColors.gold.withValues(
+                                          alpha: 0.85,
+                                        ),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const _SectionLabel('닉네임은 이렇게 정해져요'),
+                      const SizedBox(height: 4),
+                      const _InfoStepRow(
+                        icon: Icons.auto_awesome_outlined,
+                        title: '기본 캐릭터에서 출발',
+                        desc: '케미 분석으로 받은 내 기본 캐릭터(예: 티라미수)가 회차 닉네임의 기준이 돼요.',
+                        topBorder: false,
+                      ),
+                      const _InfoStepRow(
+                        icon: Icons.lock_outline_rounded,
+                        title: '회차마다 중복 없이',
+                        desc: '같은 회차에 같은 닉네임이 겹치지 않도록 운영진이 확정해요. 다른 회차에선 닉네임이 바뀔 수 있어요.',
+                      ),
+                      const _InfoStepRow(
+                        icon: Icons.person_outline_rounded,
+                        title: '실명은 매칭 후에만',
+                        desc: '이름과 연락처는 최종 쌍방 매칭된 분에게만 공개돼요.',
+                      ),
+                      const SizedBox(height: 16),
+                      const _TextPanel(
+                        text:
+                            '남성은 빵·구움과자 계열, 여성은 디저트 계열에서 닉네임을 받아요. '
+                            '도감에서 20종 캐릭터를 모두 볼 수 있어요.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectionCriteriaScreen extends StatelessWidget {
+  const _SelectionCriteriaScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _DetailTopBar(title: '선정 기준'),
+                      const SizedBox(height: 16),
+                      const _LabInfoHeadline(
+                        eyebrow: 'SELECTION',
+                        title: '회차 인원은\n케미 점수로 선정돼요.',
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'AI가 모든 신청자의 케미 점수를 계산하고, 운영진이 성비와 균형을 고려해 '
+                        '최종 회차 인원을 확정해요.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.cocoa,
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      AppCard(
+                        color: AppColors.wine,
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '케미 점수 공식',
+                              style: TextStyle(
+                                color: AppColors.gold,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: const [
+                                Expanded(
+                                  child: _ScoreFormulaBox(
+                                    top: 'STRICT',
+                                    mid: '조건 · 선호 충족',
+                                    sub: '100점 만점',
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 28,
+                                  child: Center(
+                                    child: Text(
+                                      '+',
+                                      style: TextStyle(
+                                        color: AppColors.gold,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _ScoreFormulaBox(
+                                    top: 'PSYCHOLOGY',
+                                    mid: '심리 · 과학 케미',
+                                    sub: '100점 만점',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppColors.gold.withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    '= 최종 매칭 시너지',
+                                    style: TextStyle(
+                                      color: AppColors.gold.withValues(
+                                        alpha: 0.85,
+                                      ),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    '케미 점수',
+                                    style: TextStyle(
+                                      color: AppColors.gold,
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const _SectionLabel('이렇게 선정해요'),
+                      const SizedBox(height: 4),
+                      const _InfoStepRow(
+                        icon: Icons.shield_outlined,
+                        title: '꼭 맞아야 하는 조건부터',
+                        desc: '나이 · 흡연 · 주량 · 기피 직군처럼 꼭 맞아야 하는 조건이 어긋나는 쌍은 매칭에서 제외돼요.',
+                        topBorder: false,
+                      ),
+                      const _InfoStepRow(
+                        icon: Icons.auto_awesome_outlined,
+                        title: '성향 케미 분석',
+                        desc: 'MBTI 궁합 · 가치관 · 취향 · 가까워지는 순간을 AI가 분석해 잘 맞는 정도를 계산해요.',
+                      ),
+                      const _InfoStepRow(
+                        icon: Icons.event_seat_outlined,
+                        title: '테이블 구성',
+                        desc: '케미가 좋은 4명(남2 · 여2)씩 한 테이블이 되도록 구성하고, 운영진이 최종 확정해요.',
+                      ),
+                      const SizedBox(height: 16),
+                      const _TextPanel(
+                        text:
+                            '외모 · 재산 · 학벌은 보지 않아요. 점수는 운영 참고용으로만 쓰이고 상대에게 공개되지 않아요.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScoreFormulaBox extends StatelessWidget {
+  const _ScoreFormulaBox({
+    required this.top,
+    required this.mid,
+    required this.sub,
+  });
+
+  final String top;
+  final String mid;
+  final String sub;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            top,
+            style: const TextStyle(
+              color: AppColors.gold,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$mid\n$sub',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 10.5,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -24,6 +24,8 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
+  RangeValues _ageRange = const RangeValues(30, 36);
+  RangeValues _heightRange = const RangeValues(175, 188);
   final Map<OnboardingStep, Set<String>> _selected = {
     OnboardingStep.account: {'휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의'},
     OnboardingStep.basicInfo: {'남성', '서울 강남권'},
@@ -145,6 +147,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 choices: choices[_step] ?? const [],
                 selected: _selected[_step] ?? <String>{},
                 onToggle: _toggleChoice,
+                ageRange: _ageRange,
+                heightRange: _heightRange,
+                onAgeRangeChanged: (values) =>
+                    setState(() => _ageRange = values),
+                onHeightRangeChanged: (values) =>
+                    setState(() => _heightRange = values),
               ),
             const SizedBox(height: 22),
             if (isResultStep)
@@ -552,12 +560,20 @@ class _QuestionStep extends StatelessWidget {
     required this.choices,
     required this.selected,
     required this.onToggle,
+    required this.ageRange,
+    required this.heightRange,
+    required this.onAgeRangeChanged,
+    required this.onHeightRangeChanged,
   });
 
   final OnboardingStep step;
   final List<String> choices;
   final Set<String> selected;
   final void Function(OnboardingStep step, String value) onToggle;
+  final RangeValues ageRange;
+  final RangeValues heightRange;
+  final ValueChanged<RangeValues> onAgeRangeChanged;
+  final ValueChanged<RangeValues> onHeightRangeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -607,6 +623,10 @@ class _QuestionStep extends StatelessWidget {
       return _PreferenceStep(
         selected: selected,
         onToggle: (value) => onToggle(step, value),
+        ageRange: ageRange,
+        heightRange: heightRange,
+        onAgeRangeChanged: onAgeRangeChanged,
+        onHeightRangeChanged: onHeightRangeChanged,
       );
     }
     if (step == OnboardingStep.profilePreview) {
@@ -2115,22 +2135,24 @@ class _KeywordsStep extends StatelessWidget {
 }
 
 class _PreferenceStep extends StatelessWidget {
-  const _PreferenceStep({required this.selected, required this.onToggle});
+  const _PreferenceStep({
+    required this.selected,
+    required this.onToggle,
+    required this.ageRange,
+    required this.heightRange,
+    required this.onAgeRangeChanged,
+    required this.onHeightRangeChanged,
+  });
 
   final Set<String> selected;
   final ValueChanged<String> onToggle;
+  final RangeValues ageRange;
+  final RangeValues heightRange;
+  final ValueChanged<RangeValues> onAgeRangeChanged;
+  final ValueChanged<RangeValues> onHeightRangeChanged;
 
   @override
   Widget build(BuildContext context) {
-    const heightOptions = [
-      ('크게 상관없음', 'height:크게 상관없음'),
-      ('나보다 크면', 'height:나보다 크면'),
-      ('170 이상', 'height:170 이상'),
-      ('175 이상', 'height:175 이상'),
-      ('180 이상', 'height:180 이상'),
-      ('160~170', 'height:160~170'),
-      ('165~175', 'height:165~175'),
-    ];
     const mbtiOptions = [
       ('상관없음', 'mbti:상관없음'),
       ('ENFP', 'mbti:ENFP'),
@@ -2178,16 +2200,29 @@ class _PreferenceStep extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         _PreferenceAgeCard(
+          range: ageRange,
+          onChanged: onAgeRangeChanged,
           selected: selected.contains('age:any'),
           onTap: () => onToggle('age:any'),
         ),
         const SizedBox(height: 22),
-        const _FieldLabel('상대 이상형 키'),
-        const SizedBox(height: 10),
-        _PreferencePillWrap(
-          options: heightOptions,
-          selected: selected,
-          onToggle: onToggle,
+        Row(
+          children: [
+            const _FieldLabel('상대 이상형 키'),
+            const Spacer(),
+            Text(
+              '범위',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _PreferenceHeightCard(
+          range: heightRange,
+          onChanged: onHeightRangeChanged,
         ),
         const SizedBox(height: 22),
         Row(
@@ -2277,8 +2312,15 @@ class _PreferencePillWrap extends StatelessWidget {
 }
 
 class _PreferenceAgeCard extends StatelessWidget {
-  const _PreferenceAgeCard({required this.selected, required this.onTap});
+  const _PreferenceAgeCard({
+    required this.range,
+    required this.onChanged,
+    required this.selected,
+    required this.onTap,
+  });
 
+  final RangeValues range;
+  final ValueChanged<RangeValues> onChanged;
   final bool selected;
   final VoidCallback onTap;
 
@@ -2294,20 +2336,20 @@ class _PreferenceAgeCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Row(
+          Row(
             children: [
               Text(
-                '28 세',
-                style: TextStyle(
+                '${range.start.round()} 세',
+                style: const TextStyle(
                   color: AppColors.burgundy,
                   fontSize: 18,
                   fontWeight: FontWeight.w400,
                 ),
               ),
-              Spacer(),
+              const Spacer(),
               Text(
-                '34 세',
-                style: TextStyle(
+                '${range.end.round()} 세',
+                style: const TextStyle(
                   color: AppColors.burgundy,
                   fontSize: 18,
                   fontWeight: FontWeight.w400,
@@ -2315,54 +2357,22 @@ class _PreferenceAgeCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 36,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final left = width * 0.24;
-                final right = width * 0.72;
-
-                return Stack(
-                  children: [
-                    Positioned(
-                      left: 4,
-                      right: 4,
-                      top: 15,
-                      child: Container(
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: AppColors.line,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: left,
-                      right: width - right,
-                      top: 15,
-                      child: Container(
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: AppColors.burgundy,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: left - 13,
-                      top: 3,
-                      child: const _PreferenceRangeThumb(),
-                    ),
-                    Positioned(
-                      left: right - 13,
-                      top: 3,
-                      child: const _PreferenceRangeThumb(),
-                    ),
-                  ],
-                );
-              },
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.burgundy,
+              inactiveTrackColor: AppColors.line,
+              thumbColor: Colors.white,
+              overlayColor: AppColors.burgundy.withValues(alpha: 0.12),
+              rangeThumbShape: const RoundRangeSliderThumbShape(
+                enabledThumbRadius: 11,
+              ),
+            ),
+            child: RangeSlider(
+              values: range,
+              min: 24,
+              max: 42,
+              divisions: 18,
+              onChanged: onChanged,
             ),
           ),
           const Row(
@@ -2417,23 +2427,83 @@ class _PreferenceAgeCard extends StatelessWidget {
   }
 }
 
-class _PreferenceRangeThumb extends StatelessWidget {
-  const _PreferenceRangeThumb();
+class _PreferenceHeightCard extends StatelessWidget {
+  const _PreferenceHeightCard({required this.range, required this.onChanged});
+
+  final RangeValues range;
+  final ValueChanged<RangeValues> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 26,
-      height: 26,
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: AppColors.burgundy, width: 2),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.burgundy.withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(
+                '${range.start.round()} cm',
+                style: const TextStyle(
+                  color: AppColors.burgundy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${range.end.round()} cm',
+                style: const TextStyle(
+                  color: AppColors.burgundy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.burgundy,
+              inactiveTrackColor: AppColors.line,
+              thumbColor: Colors.white,
+              overlayColor: AppColors.burgundy.withValues(alpha: 0.12),
+              rangeThumbShape: const RoundRangeSliderThumbShape(
+                enabledThumbRadius: 11,
+              ),
+            ),
+            child: RangeSlider(
+              values: range,
+              min: 155,
+              max: 195,
+              divisions: 40,
+              onChanged: onChanged,
+            ),
+          ),
+          const Row(
+            children: [
+              Text(
+                '155 cm',
+                style: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              Spacer(),
+              Text(
+                '195 cm',
+                style: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ],
       ),

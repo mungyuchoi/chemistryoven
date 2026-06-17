@@ -382,72 +382,183 @@ class _ClassInfoLine extends StatelessWidget {
   }
 }
 
-class _ProcessStrip extends StatelessWidget {
+class _ProcessStep {
+  const _ProcessStep(this.n, this.title, this.desc, this.long);
+
+  final String n;
+  final String title;
+  final String desc;
+  final String long;
+}
+
+const _processSteps = [
+  _ProcessStep(
+    '01',
+    '신청',
+    '간단한 성향 질문',
+    '카카오톡 인증 후, 취향·생활 리듬·선호 조건을 카드와 슬라이더로 가볍게 골라요. '
+        '프로필 사진과 직업 인증을 함께 제출하면 신청이 완성돼요.',
+  ),
+  _ProcessStep(
+    '02',
+    'AI 케미 분석',
+    '캐릭터 추천',
+    'AI가 입력한 취향을 분석해 20종의 디저트 케미 캐릭터 중 나와 가장 가까운 캐릭터를 찾아드려요. '
+        '잘 맞는 상대 유형도 함께 알려드려요.',
+  ),
+  _ProcessStep(
+    '03',
+    '선정',
+    '회차 인원 확정',
+    '운영진이 케미 점수와 성비 균형을 고려해 회차 인원을 직접 선정해요. '
+        '사진·직업 인증이 확인된 분만 선정되고, 입금이 확인되면 최종 확정돼요.',
+  ),
+  _ProcessStep(
+    '04',
+    '오브닝 참여',
+    '베이킹 & 대화',
+    '회차 당일, 첫인상 선택 → 로테이션 대화 → 중간 선택 → 페어 베이킹 → 최종 선택 순으로 진행돼요. '
+        '회차 내에서는 캐릭터 닉네임으로 만나요.',
+  ),
+  _ProcessStep(
+    '05',
+    '매칭 결과',
+    '케미 리포트',
+    '쌍방으로 선택하면 이름과 연락처가 공개돼요. 회차가 끝나면 AI가 그날의 선택과 베이킹 자리를 분석한 '
+        '개인 케미 리포트를 보내드려요.',
+  ),
+];
+
+class _ProcessStrip extends StatefulWidget {
   const _ProcessStrip();
 
   @override
-  Widget build(BuildContext context) {
-    const items = [
-      ('01', '신청', '간단한 성향 입력'),
-      ('02', 'AI 케미 분석', '캐릭터 추천'),
-      ('03', '선정', '회차 인원 확정'),
-      ('04', '오브닝 참여', '선택 라운드 진행'),
-      ('05', '매칭 결과', '케미 리포트'),
-    ];
+  State<_ProcessStrip> createState() => _ProcessStripState();
+}
 
-    return SizedBox(
-      height: 104,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(right: 18),
-        itemCount: items.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return SizedBox(
-            width: 98,
-            child: AppCard(
-              padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
-              color: Colors.white.withValues(alpha: 0.82),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+class _ProcessStripState extends State<_ProcessStrip> {
+  int _selected = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final cur = _processSteps[_selected];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(right: 18),
+            itemCount: _processSteps.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final item = _processSteps[index];
+              final on = index == _selected;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _selected = index),
+                child: SizedBox(
+                  width: 110,
+                  child: AppCard(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
+                    color: on
+                        ? AppColors.burgundy
+                        : Colors.white.withValues(alpha: 0.82),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.n,
+                          style: TextStyle(
+                            color: on ? AppColors.gold : AppColors.burgundy,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: on ? Colors.white : AppColors.chocolate,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.desc,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            color: on
+                                ? Colors.white.withValues(alpha: 0.74)
+                                : AppColors.mutedText,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AppCard(
+          color: AppColors.ivory,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    item.$1,
-                    style: const TextStyle(
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
                       color: AppColors.burgundy,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'STEP ${cur.n}',
+                      style: const TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Text(
-                    item.$2,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    cur.title,
                     style: const TextStyle(
-                      color: AppColors.chocolate,
-                      fontSize: 13,
+                      color: AppColors.cocoa,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.$3,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: 10,
-                      color: AppColors.mutedText,
-                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
               ),
-            ),
-          );
-        },
-      ),
+              const SizedBox(height: 8),
+              Text(
+                cur.long,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.mutedText,
+                  height: 1.65,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
