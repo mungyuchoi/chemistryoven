@@ -2,10 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>API_KEY</key>
-	<string>AIzaSyAUDgCrcBu57A06XsjMbxp2b_9NXEGKI8Y</string>
+	<key>CLIENT_ID</key>
+	<string>858970238995-6tgbcc89vtc3on9r9ksh034s6mvro6un.apps.googleusercontent.com</string>
 	<key>GCM_SENDER_ID</key>
 	<string>858970238995</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.858970238995-6tgbcc89vtc3on9r9ksh034s6mvro6un</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>858970238995-74rqa0aqivg88escfhit0sa9tvb2k160.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyAUDgCrcBu57A06XsjMbxp2b_9NXEGKI8Y</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
@@ -15,15 +21,15 @@
 	<key>STORAGE_BUCKET</key>
 	<string>chemistryoven.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
-	<false></false>
+	<false/>
 	<key>IS_ANALYTICS_ENABLED</key>
-	<false></false>
+	<false/>
 	<key>IS_APPINVITE_ENABLED</key>
-	<true></true>
+	<true/>
 	<key>IS_GCM_ENABLED</key>
-	<true></true>
+	<true/>
 	<key>IS_SIGNIN_ENABLED</key>
-	<true></true>
+	<true/>
 	<key>GOOGLE_APP_ID</key>
 	<string>1:858970238995:ios:1d356000fb767f55754fe6</string>
 </dict>

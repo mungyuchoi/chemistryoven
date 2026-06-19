@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/models/demo_models.dart';
-import '../../data/repositories/mock_chemistry_repository.dart';
+import '../../data/repositories/chemistry_repository.dart';
 
 class DemoFlowProvider extends ChangeNotifier {
   DemoFlowProvider(this._repository);
 
-  final MockChemistryRepository _repository;
+  final ChemistryRepository _repository;
 
   DemoFlowStep _currentStep = DemoFlowStep.beforeApplication;
   String? _selectedClassId;

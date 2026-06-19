@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Chemistry Oven · Storage 보안 규칙
+// 경로 규칙은 docs/ARCHITECTURE_PLAN.md §4 참고.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 프로필 사진 — 읽기는 로그인 사용자, 쓰기는 본인
+    match /profile/{uid}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
+    }
+
+    // 직업 인증 자료 — 본인만 (운영자는 콘솔/Admin SDK로 접근)
+    match /verification/{uid}/{allPaths=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // 회차 키비주얼 / 베이킹 품목 — 읽기는 로그인 사용자,
+    // 업로드는 운영자 경로(Admin SDK/Functions)로 처리 → 클라이언트 쓰기 차단
+    match /sessions/{sessionId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

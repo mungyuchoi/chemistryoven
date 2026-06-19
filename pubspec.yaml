@@ -43,6 +43,11 @@ dependencies:
   cloud_functions: ^5.1.4
   firebase_messaging: ^15.1.4
 
+  # 소셜 로그인 (Android: 구글 / iOS: 구글·애플 · 카카오는 Functions 연동 예정)
+  google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.3
+  crypto: ^3.0.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

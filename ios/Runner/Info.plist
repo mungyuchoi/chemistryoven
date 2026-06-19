@@ -66,5 +66,17 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Google 로그인 콜백 (GoogleService-Info.plist의 REVERSED_CLIENT_ID) -->
+				<string>com.googleusercontent.apps.858970238995-6tgbcc89vtc3on9r9ksh034s6mvro6un</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

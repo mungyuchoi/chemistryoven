@@ -1,7 +1,8 @@
 import '../dummy/dummy_chemistry_data.dart';
 import '../models/demo_models.dart';
+import 'chemistry_repository.dart';
 
-class MockChemistryRepository {
+class MockChemistryRepository implements ChemistryRepository {
   const MockChemistryRepository();
 
   List<ChemistryClass> fetchClasses() {

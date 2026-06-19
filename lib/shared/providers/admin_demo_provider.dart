@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/models/demo_models.dart';
-import '../../data/repositories/mock_chemistry_repository.dart';
+import '../../data/repositories/chemistry_repository.dart';
 import 'demo_flow_provider.dart';
 
 class AdminDemoProvider extends ChangeNotifier {
@@ -9,7 +9,7 @@ class AdminDemoProvider extends ChangeNotifier {
     reset();
   }
 
-  final MockChemistryRepository _repository;
+  final ChemistryRepository _repository;
   final DemoFlowProvider _flowProvider;
 
   late List<DemoApplicant> _applicants;

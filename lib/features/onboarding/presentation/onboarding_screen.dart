@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../services/onboarding_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -419,6 +420,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _finish({MainTab? targetTab}) {
     final appState = AppScope.of(context);
+    // 온보딩 결과를 Firestore에 저장 (로그인 상태일 때만, 비차단)
+    _persistOnboarding(appState);
     appState.sessionController.completeOnboarding();
     appState.modeController.setMode(DemoMode.user);
     Navigator.of(context).pop();
@@ -426,6 +429,43 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (targetTab != null) {
       widget.onNavigateAfterCompleted?.call(targetTab);
     }
+  }
+
+  /// 선택값을 모아 Firestore에 저장. 네비게이션을 막지 않도록 await 하지 않는다.
+  void _persistOnboarding(AppState appState) {
+    final genderKr = (_selected[OnboardingStep.basicInfo] ?? const <String>{})
+        .firstWhere(
+          (value) => value == '남성' || value == '여성',
+          orElse: () => '',
+        );
+
+    // 취향/키워드/라이프스타일 선택을 캐릭터 추천 키워드로 사용
+    final keywords = <String>{
+      ...?_selected[OnboardingStep.tastes],
+      ...?_selected[OnboardingStep.keywords],
+      ...?_selected[OnboardingStep.lifestyle],
+      ...?_selected[OnboardingStep.conversation],
+    };
+
+    final baseCharacterId = CharacterRecommender.recommend(
+      genderKr: genderKr,
+      keywords: keywords,
+      characters: appState.repository.fetchCharacters(),
+    );
+
+    // 비동기 저장 (실패해도 흐름은 진행)
+    OnboardingService.instance
+        .saveOnboarding(
+          genderKr: genderKr,
+          selected: _selected,
+          ageRange: [_ageRange.start, _ageRange.end],
+          heightMin: _heightRange.start,
+          baseCharacterId: baseCharacterId,
+        )
+        .catchError((Object error) {
+          debugPrint('[onboarding] 저장 실패: $error');
+          return false;
+        });
   }
 }
 

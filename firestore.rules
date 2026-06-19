@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// Chemistry Oven · Firestore 보안 규칙
+// 스키마/권한 설계는 docs/ARCHITECTURE_PLAN.md §3, §7 참고.
+// - 민감 산출물(matches/reports)은 Cloud Functions(Admin SDK)만 쓰기 → 클라이언트 위변조 차단.
+// - 실명/연락처 공개는 matches(쌍방 최종 일치) 이후로 제한.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 운영자 판별: 본인 user 문서의 roles 에 'admin' 포함 여부
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && ('admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles);
+    }
+
+    // 사용자 프로필 + 온보딩
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+
+      // 본인 하위 컬렉션(notifications 등)
+      match /{document=**} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // 케미 캐릭터 마스터(도감 20종) — 읽기 공개(앱 시작 시 로드), 쓰기 운영자
+    match /characters/{characterId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 회차
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+
+      // 신청
+      match /applications/{uid} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid);
+        allow update, delete: if isAdmin();
+      }
+
+      // 확정 인원(닉네임 배정)
+      match /participants/{uid} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+
+      // 자리 배치
+      match /seating/{tableId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+
+      // 선택(첫인상/중간/최종) — 본인만 작성
+      match /choices/{uid} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isOwner(uid);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // 쌍방 매칭(실명/연락처 공개 단위) — 당사자만 읽기, 쓰기는 Functions
+    match /matches/{matchId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.pair;
+      allow write: if isAdmin();
+    }
+
+    // 개인 케미 리포트 — 본인만 읽기, 쓰기는 Functions
+    match /reports/{reportId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if isAdmin();
+    }
+
+    // 전역 설정 / 프롬프트
+    match /config/{document} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /prompts/{version} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

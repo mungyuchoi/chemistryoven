@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../data/repositories/chemistry_repository.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../shared/providers/app_scope.dart';
 import 'main_tab_screen.dart';
 import 'theme.dart';
 
 class ChemistryOvenApp extends StatelessWidget {
-  const ChemistryOvenApp({super.key});
+  const ChemistryOvenApp({this.repository, super.key});
+
+  final ChemistryRepository? repository;
 
   @override
   Widget build(BuildContext context) {
     return AppScope(
+      repository: repository,
       child: MaterialApp(
         title: '케미스트리오븐',
         debugShowCheckedModeBanner: false,

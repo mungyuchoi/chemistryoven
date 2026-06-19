@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../data/repositories/chemistry_repository.dart';
 import '../../data/repositories/mock_chemistry_repository.dart';
 import 'admin_demo_provider.dart';
 import 'demo_flow_provider.dart';
@@ -20,14 +21,14 @@ class AppState extends ChangeNotifier {
     adminProvider.addListener(_notify);
   }
 
-  factory AppState.create() {
-    const repository = MockChemistryRepository();
+  factory AppState.create({ChemistryRepository? repository}) {
+    final ChemistryRepository repo = repository ?? const MockChemistryRepository();
     final sessionController = DemoSessionController();
     final modeController = DemoModeController();
-    final flowProvider = DemoFlowProvider(repository);
-    final adminProvider = AdminDemoProvider(repository, flowProvider);
+    final flowProvider = DemoFlowProvider(repo);
+    final adminProvider = AdminDemoProvider(repo, flowProvider);
     return AppState._(
-      repository: repository,
+      repository: repo,
       sessionController: sessionController,
       modeController: modeController,
       flowProvider: flowProvider,
@@ -35,7 +36,7 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  final MockChemistryRepository repository;
+  final ChemistryRepository repository;
   final DemoSessionController sessionController;
   final DemoModeController modeController;
   final DemoFlowProvider flowProvider;
@@ -60,9 +61,12 @@ class AppState extends ChangeNotifier {
 }
 
 class AppScope extends StatefulWidget {
-  const AppScope({required this.child, super.key});
+  const AppScope({required this.child, this.repository, super.key});
 
   final Widget child;
+
+  /// 앱 시작 시 주입되는 리포지토리. null이면 데모(Mock)로 동작.
+  final ChemistryRepository? repository;
 
   static AppState of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_AppScopeHost>();
@@ -75,7 +79,7 @@ class AppScope extends StatefulWidget {
 }
 
 class _AppScopeState extends State<AppScope> {
-  late final AppState _state = AppState.create();
+  late final AppState _state = AppState.create(repository: widget.repository);
 
   @override
   void dispose() {

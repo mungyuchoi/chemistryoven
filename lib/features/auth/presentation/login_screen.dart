@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/user_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 /// 소셜 로그인 화면 (UI 프로토타입 · 실제 인증 없음)
@@ -66,8 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '로그인 시 서비스 이용약관과 개인정보처리방침에 동의하게 됩니다.\n'
-                    '프로토타입에서는 실제 계정 연동 없이 화면 흐름만 확인할 수 있어요.',
+                    '로그인 시 서비스 이용약관과 개인정보처리방침에 동의하게 됩니다.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       height: 1.6,
@@ -271,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       subtitle: const Text(
-                        '프로토타입에서는 실제 개인정보를 수집하지 않아요.',
+                        '수집한 개인정보는 개인정보처리방침에 따라 안전하게 처리돼요.',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.mutedText,
@@ -304,26 +305,62 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin(String provider) async {
     setState(() => _isLoading = true);
-    // 실제 인증 대신 짧은 로딩으로 데모 처리.
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    try {
+      final user = switch (provider) {
+        'Google' => await AuthService.instance.signInWithGoogle(),
+        'Apple' => await AuthService.instance.signInWithApple(),
+        // 카카오는 Cloud Functions 커스텀 토큰 연동 예정 (Phase 2 후반)
+        _ => null,
+      };
+
+      if (provider == 'Kakao') {
+        _showInfo('카카오 로그인은 준비 중이에요. 곧 지원됩니다.');
+        return;
+      }
+      if (user == null) {
+        // 사용자가 로그인 창을 취소함 — 조용히 종료
+        return;
+      }
+
+      await UserService.instance.saveUserOnLogin(
+        user: user,
+        provider: provider.toLowerCase(),
+      );
+      if (!mounted) {
+        return;
+      }
+
+      // 앱 내부 데모 컨텍스트 유지 (실데이터 화면 연결 전까지 흐름 보존)
+      final appState = AppScope.of(context);
+      appState.sessionController.loginAsDemoUser(
+        displayName: user.displayName ?? '참가자',
+      );
+      appState.modeController.setMode(DemoMode.user);
+
+      _showInfo('$provider 로그인 완료');
+      _finish();
+    } catch (error) {
+      if (mounted) {
+        _showInfo('로그인에 실패했어요. 다시 시도해 주세요.');
+      }
+      debugPrint('[login] $provider 로그인 실패: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showInfo(String message) {
     if (!mounted) {
       return;
     }
-
-    final appState = AppScope.of(context);
-    appState.sessionController.loginAsDemoUser(
-      displayName: '참가자 A ($provider)',
-    );
-    appState.modeController.setMode(DemoMode.user);
-
-    setState(() => _isLoading = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$provider 로그인 완료 (검토용 데모)'),
+        content: Text(message),
         behavior: SnackBarBehavior.floating,
       ),
     );
-    _finish();
   }
 
   void _continueAsGuest() {

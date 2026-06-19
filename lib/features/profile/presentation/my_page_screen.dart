@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -5,6 +6,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../features/admin/presentation/admin_dashboard_screen.dart';
+import '../../../services/character_seeder.dart';
 import '../../../shared/providers/app_scope.dart';
 
 class MyPageScreen extends StatelessWidget {
@@ -121,6 +123,10 @@ class MyPageScreen extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 24),
+                    if (kDebugMode) ...[
+                      const _DebugSeedButton(),
+                      const SizedBox(height: 12),
+                    ],
                     _DemoModeCard(onOpenOvening: onOpenOvening),
                   ],
                 ),
@@ -873,6 +879,61 @@ class _SoftBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+/// 개발용: 캐릭터 20종을 Firestore characters/{id} 에 시드.
+/// 쓰기는 운영자(roles: admin)만 가능 — 본인 user 문서 roles 설정 후 사용.
+class _DebugSeedButton extends StatefulWidget {
+  const _DebugSeedButton();
+
+  @override
+  State<_DebugSeedButton> createState() => _DebugSeedButtonState();
+}
+
+class _DebugSeedButtonState extends State<_DebugSeedButton> {
+  bool _busy = false;
+
+  Future<void> _seed() async {
+    setState(() => _busy = true);
+    String message;
+    try {
+      final count = await CharacterSeeder.instance.seedIfEmpty();
+      message = count > 0
+          ? '캐릭터 $count종 시드 완료'
+          : '이미 시드되어 있어요 (변경 없음)';
+    } catch (error) {
+      message = '시드 실패: 운영자 권한(roles: admin)인지 확인하세요';
+      debugPrint('[seed] $error');
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _busy ? null : _seed,
+        icon: _busy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.cloud_upload_outlined, size: 18),
+        label: const Text('[개발용] 캐릭터 Firestore 시드'),
       ),
     );
   }
