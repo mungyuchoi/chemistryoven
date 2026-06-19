@@ -1,0 +1,62 @@
+{
+  "project_info": {
+    "project_number": "858970238995",
+    "project_id": "chemistryoven",
+    "storage_bucket": "chemistryoven.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:858970238995:android:835188c9d6b44769754fe6",
+        "android_client_info": {
+          "package_name": "com.mungyu.chemistryoven"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "858970238995-74rqa0aqivg88escfhit0sa9tvb2k160.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mungyu.chemistryoven",
+            "certificate_hash": "efcf3aa8e4ced3ee2836345b1ebc68e96f0bc0e2"
+          }
+        },
+        {
+          "client_id": "858970238995-plom57i858b07i7ttqo6ofbg92d8p8na.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mungyu.chemistryoven",
+            "certificate_hash": "e7bd89d15ca8182219233d40734d812337d9447b"
+          }
+        },
+        {
+          "client_id": "858970238995-l4tbgk0jk94cd8fggp6q7k5sj4vc6uqe.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_-D-PLKXUH1cnh8yeLVQE-E1fehgB9zo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "858970238995-l4tbgk0jk94cd8fggp6q7k5sj4vc6uqe.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "858970238995-6tgbcc89vtc3on9r9ksh034s6mvro6un.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mungyu.chemistryoven"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
