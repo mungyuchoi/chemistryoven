@@ -453,7 +453,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       characters: appState.repository.fetchCharacters(),
     );
 
-    // 비동기 저장 (실패해도 흐름은 진행)
+    // 비동기 저장 (실패해도 흐름은 진행). 저장 후 사용자 프로필 재로드.
     OnboardingService.instance
         .saveOnboarding(
           genderKr: genderKr,
@@ -462,9 +462,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           heightMin: _heightRange.start,
           baseCharacterId: baseCharacterId,
         )
+        .then((saved) {
+          if (saved) {
+            appState.currentUserController.load();
+          }
+        })
         .catchError((Object error) {
           debugPrint('[onboarding] 저장 실패: $error');
-          return false;
         });
   }
 }

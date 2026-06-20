@@ -13,9 +13,18 @@ class ChemistryLabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
-    final featured = appState.repository.fetchFeaturedCharacter();
     final characters = appState.repository.fetchCharacters();
     final reports = appState.repository.fetchReports();
+
+    // 온보딩으로 추천된 내 기본 캐릭터를 우선 표시 (없으면 데모 featured)
+    final baseCharacterId =
+        appState.currentUserController.profile?.baseCharacterId;
+    final featured = baseCharacterId == null
+        ? appState.repository.fetchFeaturedCharacter()
+        : characters.firstWhere(
+            (character) => character.id == baseCharacterId,
+            orElse: appState.repository.fetchFeaturedCharacter,
+          );
 
     return SafeArea(
       child: ListView(

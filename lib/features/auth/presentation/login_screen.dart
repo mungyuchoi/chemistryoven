@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -336,6 +338,8 @@ class _LoginScreenState extends State<LoginScreen> {
         displayName: user.displayName ?? '참가자',
       );
       appState.modeController.setMode(DemoMode.user);
+      // 실제 사용자 프로필(users/{uid}) 로드
+      unawaited(appState.currentUserController.load());
 
       _showInfo('$provider 로그인 완료');
       _finish();

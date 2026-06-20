@@ -260,7 +260,20 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
     final session = appState.sessionController;
-    final character = appState.repository.fetchFeaturedCharacter();
+    final profile = appState.currentUserController.profile;
+    final characters = appState.repository.fetchCharacters();
+
+    final displayName = profile?.displayName ?? session.displayName;
+    final avatarInitial =
+        displayName.isNotEmpty ? displayName.substring(0, 1) : '?';
+    final genderKr = profile?.genderKr;
+    final baseCharacterId = profile?.baseCharacterId;
+    final character = baseCharacterId == null
+        ? appState.repository.fetchFeaturedCharacter()
+        : characters.firstWhere(
+            (item) => item.id == baseCharacterId,
+            orElse: appState.repository.fetchFeaturedCharacter,
+          );
 
     return AppCard(
       color: Colors.white,
@@ -281,7 +294,7 @@ class _ProfileHeader extends StatelessWidget {
                   border: Border.all(color: AppColors.brandRed),
                 ),
                 child: Text(
-                  '참A',
+                  avatarInitial,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppColors.brandRed,
                     fontWeight: FontWeight.w500,
@@ -299,16 +312,19 @@ class _ProfileHeader extends StatelessWidget {
                         TextSpan(
                           children: [
                             TextSpan(
-                              text: session.displayName,
+                              text: displayName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.cocoa,
                               ),
                             ),
-                            const TextSpan(
-                              text: ' · 90년대생',
-                              style: TextStyle(color: AppColors.mutedText),
-                            ),
+                            if (genderKr != null)
+                              TextSpan(
+                                text: ' · $genderKr',
+                                style: const TextStyle(
+                                  color: AppColors.mutedText,
+                                ),
+                              ),
                           ],
                         ),
                         style: Theme.of(context).textTheme.bodyMedium,

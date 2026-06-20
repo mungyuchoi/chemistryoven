@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../data/repositories/chemistry_repository.dart';
 import '../../data/repositories/mock_chemistry_repository.dart';
 import 'admin_demo_provider.dart';
+import 'current_user_controller.dart';
 import 'demo_flow_provider.dart';
 import 'demo_mode_controller.dart';
 import 'demo_session_controller.dart';
@@ -14,11 +15,13 @@ class AppState extends ChangeNotifier {
     required this.modeController,
     required this.flowProvider,
     required this.adminProvider,
+    required this.currentUserController,
   }) {
     sessionController.addListener(_notify);
     modeController.addListener(_notify);
     flowProvider.addListener(_notify);
     adminProvider.addListener(_notify);
+    currentUserController.addListener(_notify);
   }
 
   factory AppState.create({ChemistryRepository? repository}) {
@@ -27,12 +30,14 @@ class AppState extends ChangeNotifier {
     final modeController = DemoModeController();
     final flowProvider = DemoFlowProvider(repo);
     final adminProvider = AdminDemoProvider(repo, flowProvider);
+    final currentUserController = CurrentUserController();
     return AppState._(
       repository: repo,
       sessionController: sessionController,
       modeController: modeController,
       flowProvider: flowProvider,
       adminProvider: adminProvider,
+      currentUserController: currentUserController,
     );
   }
 
@@ -41,6 +46,7 @@ class AppState extends ChangeNotifier {
   final DemoModeController modeController;
   final DemoFlowProvider flowProvider;
   final AdminDemoProvider adminProvider;
+  final CurrentUserController currentUserController;
 
   void _notify() {
     notifyListeners();
@@ -52,10 +58,12 @@ class AppState extends ChangeNotifier {
     modeController.removeListener(_notify);
     flowProvider.removeListener(_notify);
     adminProvider.removeListener(_notify);
+    currentUserController.removeListener(_notify);
     sessionController.dispose();
     modeController.dispose();
     flowProvider.dispose();
     adminProvider.dispose();
+    currentUserController.dispose();
     super.dispose();
   }
 }
