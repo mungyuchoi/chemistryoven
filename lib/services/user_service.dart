@@ -70,4 +70,12 @@ class UserService {
   Future<DocumentSnapshot<Map<String, dynamic>>> fetchUser(String uid) {
     return _fs.userDoc(uid).get();
   }
+
+  /// 프로필 사진 URL 갱신.
+  Future<void> updatePhotoURL(String uid, String url) {
+    return _fs.userDoc(uid).set({
+      'photoURL': url,
+      'lastActiveAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

@@ -7,6 +7,9 @@ import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../../services/character_seeder.dart';
+import '../../../services/firebase_service.dart';
+import '../../../services/storage_service.dart';
+import '../../../services/user_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 class MyPageScreen extends StatelessWidget {
@@ -288,18 +291,34 @@ class _ProfileHeader extends StatelessWidget {
                 width: 58,
                 height: 58,
                 alignment: Alignment.center,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.butter,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.brandRed),
                 ),
-                child: Text(
-                  avatarInitial,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.brandRed,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                child: (profile?.photoURL != null)
+                    ? Image.network(
+                        profile!.photoURL!,
+                        width: 58,
+                        height: 58,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => Text(
+                          avatarInitial,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppColors.brandRed,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      )
+                    : Text(
+                        avatarInitial,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppColors.brandRed,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -349,9 +368,9 @@ class _ProfileHeader extends StatelessWidget {
                   width: 32,
                   height: 32,
                 ),
-                onPressed: () {},
+                onPressed: () => _changeProfilePhoto(context),
                 icon: const Icon(
-                  Icons.edit_outlined,
+                  Icons.photo_camera_outlined,
                   size: 17,
                   color: AppColors.mutedText,
                 ),
@@ -405,6 +424,40 @@ class _ProfileHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _changeProfilePhoto(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final appState = AppScope.of(context);
+    final uid = FirebaseService.instance.uid;
+    if (uid == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('로그인 후 이용해 주세요')),
+      );
+      return;
+    }
+
+    final file = await StorageService.instance.pickImage();
+    if (file == null) {
+      return; // 사용자가 취소
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(content: Text('사진 업로드 중...')),
+    );
+    try {
+      final url = await StorageService.instance.uploadProfilePhoto(uid, file);
+      await UserService.instance.updatePhotoURL(uid, url);
+      await appState.currentUserController.load();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('프로필 사진이 변경됐어요')),
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('업로드에 실패했어요. 다시 시도해 주세요')),
+      );
+      debugPrint('[profile-photo] $error');
+    }
   }
 }
 

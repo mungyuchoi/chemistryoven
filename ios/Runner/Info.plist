@@ -78,5 +78,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>프로필 사진과 인증 자료를 업로드하기 위해 사진 접근이 필요해요.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>프로필 사진과 인증 자료를 촬영하기 위해 카메라 접근이 필요해요.</string>
 </dict>
 </plist>
