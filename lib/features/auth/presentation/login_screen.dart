@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/fcm_service.dart';
 import '../../../services/user_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
@@ -340,6 +341,10 @@ class _LoginScreenState extends State<LoginScreen> {
       appState.modeController.setMode(DemoMode.user);
       // 실제 사용자 프로필(users/{uid}) 로드
       unawaited(appState.currentUserController.load());
+      // 회차(sessions) 실시간 구독 시작
+      appState.sessionsController.start();
+      // 앱 접속 시 FCM 토큰을 users/{uid}.fcmToken 에 기록
+      unawaited(FcmService.instance.registerForCurrentUser());
 
       _showInfo('$provider 로그인 완료');
       _finish();

@@ -20,7 +20,9 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final classes = AppScope.of(context).repository.fetchClasses();
+    final classes = AppScope.of(context).sessionsController.sessions
+        .map((s) => s.toDisplayClass())
+        .toList();
     final selectedClasses = classes
         .where((demoClass) => demoClass.eventDay == _selectedDay)
         .toList();
@@ -81,16 +83,32 @@ class _ClassesScreenState extends State<ClassesScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    for (final demoClass in upcomingClasses) ...[
-                      _UpcomingClassCard(
-                        demoClass: demoClass,
-                        onTap: () {
-                          setState(() => _selectedDay = demoClass.eventDay);
-                          _showClassDetail(context, demoClass);
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                    ],
+                    if (classes.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            '곧 새로운 회차가 열릴 거예요.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.mutedText,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                          ),
+                        ),
+                      )
+                    else
+                      for (final demoClass in upcomingClasses) ...[
+                        _UpcomingClassCard(
+                          demoClass: demoClass,
+                          onTap: () {
+                            setState(() => _selectedDay = demoClass.eventDay);
+                            _showClassDetail(context, demoClass);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                   ],
                 ),
               ),

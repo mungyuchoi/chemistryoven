@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../data/models/chemistry_session.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../data/repositories/session_repository.dart';
+import '../../../services/firebase_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 enum _AdminScreen {
@@ -45,6 +48,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _menCount = 4;
   int _womenCount = 4;
   bool _rememberAdminLogin = true;
+
+  // 회차 생성 폼 입력
+  final TextEditingController _sessionTitleCtrl = TextEditingController();
+  final TextEditingController _sessionDateCtrl = TextEditingController();
+  final TextEditingController _sessionTimeCtrl = TextEditingController();
+  final TextEditingController _sessionPlaceCtrl = TextEditingController();
+  final TextEditingController _sessionPriceCtrl = TextEditingController();
+  final TextEditingController _sessionMenuCtrl = TextEditingController();
+  bool _publishingSession = false;
   Map<String, _SeatAssignment> _seatAssignments = Map.of(
     _initialSeatAssignments,
   );
@@ -99,7 +111,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case _AdminScreen.notifications:
         return _buildNotifications(context);
       case _AdminScreen.sessions:
-        return _buildSessionList(context, appState.repository.fetchClasses());
+        return _buildSessionList(
+          context,
+          appState.sessionsController.sessions
+              .map((s) => s.toDisplayClass())
+              .toList(),
+        );
       case _AdminScreen.sessionDetail:
         return _buildSessionDetail(
           context,
@@ -134,6 +151,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _go(_AdminScreen screen) {
     setState(() => _screen = screen);
+  }
+
+  @override
+  void dispose() {
+    _sessionTitleCtrl.dispose();
+    _sessionDateCtrl.dispose();
+    _sessionTimeCtrl.dispose();
+    _sessionPlaceCtrl.dispose();
+    _sessionPriceCtrl.dispose();
+    _sessionMenuCtrl.dispose();
+    super.dispose();
+  }
+
+  /// 회차 게시 → Firestore sessions 에 생성.
+  Future<void> _publishSession() async {
+    final title = _sessionTitleCtrl.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('회차명을 입력해 주세요')),
+      );
+      return;
+    }
+    setState(() => _publishingSession = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final session = ChemistrySession(
+        id: '',
+        title: title,
+        dateText: _sessionDateCtrl.text.trim(),
+        timeText: _sessionTimeCtrl.text.trim(),
+        location: _sessionPlaceCtrl.text.trim(),
+        priceText: _sessionPriceCtrl.text.trim(),
+        recruitMale: _menCount,
+        recruitFemale: _womenCount,
+        menuName: _sessionMenuCtrl.text.trim(),
+        status: 'recruiting',
+        createdBy: FirebaseService.instance.uid,
+      );
+      await SessionRepository.instance.createSession(session);
+      if (!mounted) return;
+      _clearSessionForm();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('회차가 게시됐어요')),
+      );
+      _go(_AdminScreen.sessions);
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('게시에 실패했어요. 운영자 권한을 확인해 주세요')),
+      );
+      debugPrint('[session-create] $error');
+    } finally {
+      if (mounted) {
+        setState(() => _publishingSession = false);
+      }
+    }
+  }
+
+  void _clearSessionForm() {
+    _sessionTitleCtrl.clear();
+    _sessionDateCtrl.clear();
+    _sessionTimeCtrl.clear();
+    _sessionPlaceCtrl.clear();
+    _sessionPriceCtrl.clear();
+    _sessionMenuCtrl.clear();
   }
 
   String get _seatingEditSubtitle {
@@ -578,33 +659,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
         ),
         const SizedBox(height: 14),
-        const _HorizontalChipStrip(
-          labels: ['전체 6', '모집중 2', '선정중 1', '확정 2', '종료 1'],
+        _HorizontalChipStrip(
+          labels: ['전체 ${classes.length}'],
           selectedIndex: 0,
         ),
         const SizedBox(height: 14),
-        _SessionListCard(
-          number: '8기',
-          classData: classes[0],
-          status: '모집중',
-          active: true,
-          onTap: () => _go(_AdminScreen.sessionDetail),
-        ),
-        const SizedBox(height: 12),
-        _SessionListCard(
-          number: '9기',
-          classData: classes[1],
-          status: '오픈예정',
-          onTap: () => _go(_AdminScreen.sessionDetail),
-        ),
-        const SizedBox(height: 12),
-        _SessionListCard(
-          number: '10기',
-          classData: classes[2],
-          status: '기획중',
-          empty: true,
-          onTap: () => _go(_AdminScreen.sessionDetail),
-        ),
+        if (classes.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48),
+            child: Center(
+              child: Text(
+                '아직 등록된 회차가 없어요. 새 회차를 만들어 보세요.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.mutedText,
+                ),
+              ),
+            ),
+          )
+        else
+          for (var i = 0; i < classes.length; i++) ...[
+            _SessionListCard(
+              number: '${i + 1}기',
+              classData: classes[i],
+              status: classes[i].statusLabel,
+              active: i == 0,
+              onTap: () => _go(_AdminScreen.sessionDetail),
+            ),
+            if (i != classes.length - 1) const SizedBox(height: 12),
+          ],
       ],
     );
   }
@@ -711,15 +794,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         const SizedBox(height: 20),
         const _TinyEyebrow('01  기본 정보'),
         const SizedBox(height: 10),
-        const _AdminInput(label: '회차'),
+        _AdminInput(label: '회차 (예: 케미스트리오븐 9기)', controller: _sessionTitleCtrl),
         const SizedBox(height: 10),
-        const _AdminInput(label: '일시', icon: Icons.calendar_month_outlined),
+        _AdminInput(
+          label: '일시 (예: 2026-07-12)',
+          icon: Icons.calendar_month_outlined,
+          controller: _sessionDateCtrl,
+        ),
         const SizedBox(height: 10),
-        const _AdminInput(label: '시간', icon: Icons.access_time_outlined),
+        _AdminInput(
+          label: '시간 (예: 오후 2시)',
+          icon: Icons.access_time_outlined,
+          controller: _sessionTimeCtrl,
+        ),
         const SizedBox(height: 10),
-        const _AdminInput(label: '장소', icon: Icons.place_outlined),
+        _AdminInput(
+          label: '장소',
+          icon: Icons.place_outlined,
+          controller: _sessionPlaceCtrl,
+        ),
         const SizedBox(height: 10),
-        const _AdminInput(label: '참가비', icon: Icons.payments_outlined),
+        _AdminInput(
+          label: '참가비',
+          icon: Icons.payments_outlined,
+          controller: _sessionPriceCtrl,
+        ),
         const SizedBox(height: 20),
         const _TinyEyebrow('02  모집 인원'),
         const SizedBox(height: 10),
@@ -755,7 +854,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         const SizedBox(height: 20),
         const _TinyEyebrow('03  베이킹 클래스 메뉴 · 회원에게 노출'),
         const SizedBox(height: 10),
-        const _AdminInput(label: '메뉴명', icon: Icons.local_dining_outlined),
+        _AdminInput(
+          label: '메뉴명 (예: 마들렌 · 휘낭시에)',
+          icon: Icons.local_dining_outlined,
+          controller: _sessionMenuCtrl,
+        ),
         const SizedBox(height: 10),
         const _HorizontalChipStrip(
           labels: ['알레르기 견과 함유', '글루텐 함유', '계란 함유', '유제품 함유'],
@@ -805,8 +908,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _WideButton(
-                label: '회차 게시',
-                onTap: () => _go(_AdminScreen.sessions),
+                label: _publishingSession ? '게시 중...' : '회차 게시',
+                onTap: () {
+                  if (!_publishingSession) {
+                    _publishSession();
+                  }
+                },
               ),
             ),
           ],
@@ -2904,16 +3011,49 @@ class _AdminInput extends StatelessWidget {
     this.icon,
     this.value,
     this.obscure = false,
+    this.controller,
   });
 
   final String label;
   final IconData? icon;
   final String? value;
   final bool obscure;
+  final TextEditingController? controller;
 
   @override
   Widget build(BuildContext context) {
     final displayValue = value;
+
+    // 입력 컨트롤러가 있으면 실제 TextField로 렌더
+    if (controller != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: TextField(
+          controller: controller,
+          obscureText: obscure,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.cocoa,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            hintText: label,
+            hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.mutedText,
+            ),
+            icon: icon == null
+                ? null
+                : Icon(icon, size: 17, color: AppColors.burgundy),
+          ),
+        ),
+      );
+    }
 
     return Container(
       width: double.infinity,

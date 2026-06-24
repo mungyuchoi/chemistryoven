@@ -7,6 +7,7 @@ import 'current_user_controller.dart';
 import 'demo_flow_provider.dart';
 import 'demo_mode_controller.dart';
 import 'demo_session_controller.dart';
+import 'sessions_controller.dart';
 
 class AppState extends ChangeNotifier {
   AppState._({
@@ -16,12 +17,14 @@ class AppState extends ChangeNotifier {
     required this.flowProvider,
     required this.adminProvider,
     required this.currentUserController,
+    required this.sessionsController,
   }) {
     sessionController.addListener(_notify);
     modeController.addListener(_notify);
     flowProvider.addListener(_notify);
     adminProvider.addListener(_notify);
     currentUserController.addListener(_notify);
+    sessionsController.addListener(_notify);
   }
 
   factory AppState.create({ChemistryRepository? repository}) {
@@ -31,6 +34,7 @@ class AppState extends ChangeNotifier {
     final flowProvider = DemoFlowProvider(repo);
     final adminProvider = AdminDemoProvider(repo, flowProvider);
     final currentUserController = CurrentUserController();
+    final sessionsController = SessionsController();
     return AppState._(
       repository: repo,
       sessionController: sessionController,
@@ -38,6 +42,7 @@ class AppState extends ChangeNotifier {
       flowProvider: flowProvider,
       adminProvider: adminProvider,
       currentUserController: currentUserController,
+      sessionsController: sessionsController,
     );
   }
 
@@ -47,6 +52,7 @@ class AppState extends ChangeNotifier {
   final DemoFlowProvider flowProvider;
   final AdminDemoProvider adminProvider;
   final CurrentUserController currentUserController;
+  final SessionsController sessionsController;
 
   void _notify() {
     notifyListeners();
@@ -59,11 +65,13 @@ class AppState extends ChangeNotifier {
     flowProvider.removeListener(_notify);
     adminProvider.removeListener(_notify);
     currentUserController.removeListener(_notify);
+    sessionsController.removeListener(_notify);
     sessionController.dispose();
     modeController.dispose();
     flowProvider.dispose();
     adminProvider.dispose();
     currentUserController.dispose();
+    sessionsController.dispose();
     super.dispose();
   }
 }
