@@ -81,6 +81,20 @@ class AuthService {
     await _auth.signOut();
   }
 
+  /// 회원탈퇴. 최근 로그인이 아니면 'requires-recent-login' 예외가 날 수 있다.
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    await user.delete();
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {
+      // 무시
+    }
+  }
+
   // ── nonce 유틸 (애플 로그인 보안용) ──────────────────────────
   String _generateNonce([int length = 32]) {
     const charset =

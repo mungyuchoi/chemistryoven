@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
 import '../core/widgets/status_badge.dart';
 import '../data/models/demo_models.dart';
+import '../data/repositories/application_repository.dart';
 import '../features/classes/presentation/classes_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/lab/presentation/chemistry_lab_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/ovening/presentation/ovening_screen.dart';
 import '../features/profile/presentation/my_page_screen.dart';
+import '../services/firebase_service.dart';
 import '../shared/providers/app_scope.dart';
 
 class MainTabScreen extends StatefulWidget {
@@ -120,6 +124,29 @@ class _MainTabScreenState extends State<MainTabScreen> {
     appState.sessionController.loginAsDemoUser();
     appState.modeController.setMode(DemoMode.user);
     appState.flowProvider.applyForClass(demoClass.id);
+
+    // 실제 Firestore 신청 — 로그인 사용자 + 실제 회차일 때만
+    final uid = FirebaseService.instance.uid;
+    final isRealSession = appState.sessionsController.sessions
+        .any((session) => session.id == demoClass.id);
+    if (uid != null && isRealSession) {
+      final profile = appState.currentUserController.profile;
+      unawaited(
+        ApplicationRepository.instance
+            .apply(
+              sessionId: demoClass.id,
+              uid: uid,
+              displayName:
+                  profile?.displayName ?? appState.sessionController.displayName,
+              gender: profile?.gender,
+              baseCharacterId: profile?.baseCharacterId,
+            )
+            .catchError((Object error) {
+              debugPrint('[apply] 신청 실패: $error');
+            }),
+      );
+    }
+
     if (!mounted) {
       return;
     }

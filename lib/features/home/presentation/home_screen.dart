@@ -23,8 +23,16 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
-    final featuredClass = appState.repository.fetchFeaturedClass();
-    final classes = appState.repository.fetchClasses();
+    // 실제 회차가 있으면 Firestore 데이터, 없으면 데모로 폴백
+    final realSessions = appState.sessionsController.sessions
+        .map((session) => session.toDisplayClass())
+        .toList();
+    final featuredClass = realSessions.isNotEmpty
+        ? realSessions.first
+        : appState.repository.fetchFeaturedClass();
+    final classes = realSessions.isNotEmpty
+        ? realSessions
+        : appState.repository.fetchClasses();
     final character = appState.repository.fetchFeaturedCharacter();
 
     return SafeArea(

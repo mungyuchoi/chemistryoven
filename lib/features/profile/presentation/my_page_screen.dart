@@ -6,6 +6,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../features/admin/presentation/admin_dashboard_screen.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/character_seeder.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/storage_service.dart';
@@ -97,15 +98,15 @@ class MyPageScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      const _MenuSection(
+                      _MenuSection(
                         title: '설정',
                         items: [
-                          _MenuItem(
+                          const _MenuItem(
                             icon: Icons.notifications_none_rounded,
                             title: '알림 설정',
                             value: 'ON',
                           ),
-                          _MenuItem(
+                          const _MenuItem(
                             icon: Icons.settings_outlined,
                             title: '앱 설정',
                             value: '',
@@ -115,12 +116,14 @@ class MyPageScreen extends StatelessWidget {
                             title: '로그아웃',
                             value: '',
                             muted: true,
+                            onTap: () => _logout(context, appState),
                           ),
                           _MenuItem(
                             icon: Icons.person_remove_alt_1_outlined,
                             title: '회원탈퇴',
                             value: '',
                             muted: true,
+                            onTap: () => _confirmDeleteAccount(context, appState),
                           ),
                         ],
                       ),
@@ -139,6 +142,77 @@ class MyPageScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _logout(BuildContext context, AppState appState) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('로그아웃하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('로그아웃'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    await AuthService.instance.signOut();
+    appState.currentUserController.clear();
+    appState.sessionsController.stop();
+    appState.sessionController.exitToLogin();
+  }
+
+  Future<void> _confirmDeleteAccount(
+    BuildContext context,
+    AppState appState,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('회원탈퇴'),
+        content: const Text('계정과 프로필 정보가 삭제돼요. 정말 탈퇴하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('탈퇴'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    final uid = FirebaseService.instance.uid;
+    try {
+      if (uid != null) {
+        await FirebaseService.instance.userDoc(uid).delete();
+      }
+      await AuthService.instance.deleteAccount();
+      appState.currentUserController.clear();
+      appState.sessionsController.stop();
+      appState.sessionController.exitToLogin();
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('탈퇴에 실패했어요. 다시 로그인 후 시도해 주세요'),
+        ),
+      );
+      debugPrint('[delete-account] $error');
+    }
   }
 }
 
@@ -779,12 +853,14 @@ class _MenuItem {
     required this.title,
     required this.value,
     this.muted = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String value;
   final bool muted;
+  final VoidCallback? onTap;
 }
 
 class _MenuRow extends StatelessWidget {
@@ -798,7 +874,7 @@ class _MenuRow extends StatelessWidget {
     final textColor = item.muted ? AppColors.mutedText : AppColors.cocoa;
 
     return InkWell(
-      onTap: () {},
+      onTap: item.onTap ?? () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         child: Row(

@@ -6,7 +6,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../services/firebase_service.dart';
 import '../../../services/onboarding_service.dart';
+import '../../../services/storage_service.dart';
+import '../../../services/user_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -61,6 +64,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
     OnboardingStep.profilePreview: {'공개 프로필 확인', 'AI 문장 보정 완료', '운영진 확인 정보 분리'},
   };
+
+  // 기본 정보 입력값 (이름/키/생년월일).
+  final TextEditingController _nameCtrl = TextEditingController(text: '신청자 A');
+  final TextEditingController _heightCtrl = TextEditingController(text: '164');
+  String _birth = '1995-04-18';
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _heightCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onBirthChanged(String birth) {
+    _birth = birth;
+  }
 
   List<OnboardingStep> get _steps => OnboardingStep.values;
   OnboardingStep get _step => _steps[_index];
@@ -154,6 +173,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     setState(() => _ageRange = values),
                 onHeightRangeChanged: (values) =>
                     setState(() => _heightRange = values),
+                nameController: _nameCtrl,
+                heightController: _heightCtrl,
+                initialBirth: _birth,
+                onBirthChanged: _onBirthChanged,
               ),
             const SizedBox(height: 22),
             if (isResultStep)
@@ -453,6 +476,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       characters: appState.repository.fetchCharacters(),
     );
 
+    // 기본 정보(이름/키/생년월일) 저장 (비차단, 로그인 시에만).
+    final uid = FirebaseService.instance.uid;
+    if (uid != null) {
+      UserService.instance
+          .updateBasicInfo(
+            uid: uid,
+            name: _nameCtrl.text.trim(),
+            birth: _birth,
+            height: int.tryParse(_heightCtrl.text.trim()),
+          )
+          .catchError((Object error) {
+            debugPrint('[onboarding] 기본 정보 저장 실패: $error');
+          });
+    }
+
     // 비동기 저장 (실패해도 흐름은 진행). 저장 후 사용자 프로필 재로드.
     OnboardingService.instance
         .saveOnboarding(
@@ -608,6 +646,10 @@ class _QuestionStep extends StatelessWidget {
     required this.heightRange,
     required this.onAgeRangeChanged,
     required this.onHeightRangeChanged,
+    required this.nameController,
+    required this.heightController,
+    required this.initialBirth,
+    required this.onBirthChanged,
   });
 
   final OnboardingStep step;
@@ -618,6 +660,10 @@ class _QuestionStep extends StatelessWidget {
   final RangeValues heightRange;
   final ValueChanged<RangeValues> onAgeRangeChanged;
   final ValueChanged<RangeValues> onHeightRangeChanged;
+  final TextEditingController nameController;
+  final TextEditingController heightController;
+  final String initialBirth;
+  final ValueChanged<String> onBirthChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -631,6 +677,10 @@ class _QuestionStep extends StatelessWidget {
       return _BasicInfoStep(
         selected: selected,
         onToggle: (value) => onToggle(step, value),
+        nameController: nameController,
+        heightController: heightController,
+        initialBirth: initialBirth,
+        onBirthChanged: onBirthChanged,
       );
     }
     if (step == OnboardingStep.rhythm) {
@@ -999,10 +1049,21 @@ class _PreviewRow extends StatelessWidget {
 }
 
 class _BasicInfoStep extends StatelessWidget {
-  const _BasicInfoStep({required this.selected, required this.onToggle});
+  const _BasicInfoStep({
+    required this.selected,
+    required this.onToggle,
+    required this.nameController,
+    required this.heightController,
+    required this.initialBirth,
+    required this.onBirthChanged,
+  });
 
   final Set<String> selected;
   final ValueChanged<String> onToggle;
+  final TextEditingController nameController;
+  final TextEditingController heightController;
+  final String initialBirth;
+  final ValueChanged<String> onBirthChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1023,7 +1084,7 @@ class _BasicInfoStep extends StatelessWidget {
         const _FieldLabel('이름'),
         const SizedBox(height: 8),
         TextFormField(
-          initialValue: '신청자 A',
+          controller: nameController,
           textInputAction: TextInputAction.next,
           style: const TextStyle(
             color: AppColors.cocoa,
@@ -1059,12 +1120,15 @@ class _BasicInfoStep extends StatelessWidget {
         const SizedBox(height: 18),
         const _FieldLabel('생년월일'),
         const SizedBox(height: 8),
-        const _BirthDateSpinner(),
+        _BirthDateSpinner(
+          initialBirth: initialBirth,
+          onChanged: onBirthChanged,
+        ),
         const SizedBox(height: 18),
         const _FieldLabel('키'),
         const SizedBox(height: 8),
         TextFormField(
-          initialValue: '164',
+          controller: heightController,
           keyboardType: TextInputType.number,
           textInputAction: TextInputAction.done,
           style: const TextStyle(
@@ -1174,15 +1238,53 @@ class _GenderCard extends StatelessWidget {
   }
 }
 
-class _BirthDateSpinner extends StatelessWidget {
-  const _BirthDateSpinner();
+class _BirthDateSpinner extends StatefulWidget {
+  const _BirthDateSpinner({required this.initialBirth, required this.onChanged});
+
+  final String initialBirth;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_BirthDateSpinner> createState() => _BirthDateSpinnerState();
+}
+
+class _BirthDateSpinnerState extends State<_BirthDateSpinner> {
+  static final List<String> _years = List.generate(
+    48,
+    (index) => '${1978 + index}',
+  );
+  static final List<String> _months = List.generate(
+    12,
+    (index) => '${index + 1}'.padLeft(2, '0'),
+  );
+  static final List<String> _days = List.generate(
+    31,
+    (index) => '${index + 1}'.padLeft(2, '0'),
+  );
+
+  late String _year;
+  late String _month;
+  late String _day;
+
+  @override
+  void initState() {
+    super.initState();
+    final parts = widget.initialBirth.split('-');
+    _year = (parts.isNotEmpty && _years.contains(parts[0]))
+        ? parts[0]
+        : '1995';
+    _month = (parts.length > 1 && _months.contains(parts[1]))
+        ? parts[1]
+        : '04';
+    _day = (parts.length > 2 && _days.contains(parts[2])) ? parts[2] : '18';
+  }
+
+  void _notify() {
+    widget.onChanged('$_year-$_month-$_day');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final years = List.generate(48, (index) => '${1978 + index}');
-    final months = List.generate(12, (index) => '${index + 1}'.padLeft(2, '0'));
-    final days = List.generate(31, (index) => '${index + 1}'.padLeft(2, '0'));
-
     return Container(
       height: 126,
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1195,25 +1297,37 @@ class _BirthDateSpinner extends StatelessWidget {
         children: [
           Expanded(
             child: _SpinnerColumn(
-              values: years,
+              values: _years,
               unit: '년',
-              initialIndex: years.indexOf('1995'),
+              initialIndex: _years.indexOf(_year),
+              onChanged: (value) {
+                _year = value;
+                _notify();
+              },
             ),
           ),
           const _SpinnerDivider(),
           Expanded(
             child: _SpinnerColumn(
-              values: months,
+              values: _months,
               unit: '월',
-              initialIndex: months.indexOf('04'),
+              initialIndex: _months.indexOf(_month),
+              onChanged: (value) {
+                _month = value;
+                _notify();
+              },
             ),
           ),
           const _SpinnerDivider(),
           Expanded(
             child: _SpinnerColumn(
-              values: days,
+              values: _days,
               unit: '일',
-              initialIndex: days.indexOf('18'),
+              initialIndex: _days.indexOf(_day),
+              onChanged: (value) {
+                _day = value;
+                _notify();
+              },
             ),
           ),
         ],
@@ -1227,11 +1341,13 @@ class _SpinnerColumn extends StatelessWidget {
     required this.values,
     required this.unit,
     required this.initialIndex,
+    this.onChanged,
   });
 
   final List<String> values;
   final String unit;
   final int initialIndex;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1248,7 +1364,11 @@ class _SpinnerColumn extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      onSelectedItemChanged: (_) {},
+      onSelectedItemChanged: (index) {
+        if (index >= 0 && index < values.length) {
+          onChanged?.call(values[index]);
+        }
+      },
       children: [
         for (final value in values)
           Center(
@@ -2935,60 +3055,148 @@ class _TrustPoint extends StatelessWidget {
   }
 }
 
-class _VerificationStep extends StatelessWidget {
+class _VerificationStep extends StatefulWidget {
   const _VerificationStep();
+
+  @override
+  State<_VerificationStep> createState() => _VerificationStepState();
+}
+
+class _VerificationStepState extends State<_VerificationStep> {
+  static const List<({IconData icon, String title})> _documents = [
+    (icon: Icons.credit_card_outlined, title: '명함'),
+    (icon: Icons.shield_outlined, title: '사원증'),
+    (icon: Icons.alternate_email, title: '회사 이메일'),
+    (icon: Icons.article_outlined, title: '사업자등록증'),
+  ];
+
+  // 제출 완료된 인증 자료 (title 기준).
+  final Set<String> _submittedDocs = {};
+  // 업로드 진행 중인 인증 자료 (title 기준).
+  final Set<String> _uploadingDocs = {};
+
+  // 슬롯별 업로드된 사진 URL.
+  final Map<int, String> _photoUrls = {};
+  // 업로드 진행 중인 슬롯.
+  final Set<int> _uploadingPhotos = {};
+
+  Future<void> _submitDocument(String title) async {
+    if (_uploadingDocs.contains(title) || _submittedDocs.contains(title)) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = FirebaseService.instance.uid;
+    if (uid == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('로그인 후 제출할 수 있어요')),
+      );
+      return;
+    }
+    final file = await StorageService.instance.pickImage();
+    if (file == null) return;
+
+    if (!mounted) return;
+    setState(() => _uploadingDocs.add(title));
+    try {
+      final url = await StorageService.instance.uploadJobVerification(
+        uid,
+        file,
+      );
+      await UserService.instance.submitJobVerification(uid, url);
+      if (!mounted) return;
+      setState(() {
+        _uploadingDocs.remove(title);
+        _submittedDocs.add(title);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _uploadingDocs.remove(title));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('제출에 실패했어요. 잠시 후 다시 시도해주세요.')),
+      );
+    }
+  }
+
+  Future<void> _uploadPhoto(int slot) async {
+    if (_uploadingPhotos.contains(slot)) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = FirebaseService.instance.uid;
+    if (uid == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('로그인 후 업로드할 수 있어요')),
+      );
+      return;
+    }
+    final file = await StorageService.instance.pickImage();
+    if (file == null) return;
+
+    if (!mounted) return;
+    setState(() => _uploadingPhotos.add(slot));
+    try {
+      final url = await StorageService.instance.uploadProfilePhoto(uid, file);
+      await UserService.instance.updatePhotoURL(uid, url);
+      if (!mounted) return;
+      AppScope.of(context).currentUserController.load();
+      setState(() {
+        _uploadingPhotos.remove(slot);
+        _photoUrls[slot] = url;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _uploadingPhotos.remove(slot));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('업로드에 실패했어요. 잠시 후 다시 시도해주세요.')),
+      );
+    }
+  }
+
+  Widget _buildPhotoSlot(int slot, {IconData? icon, String? label}) {
+    return _PhotoUploadSlot(
+      icon: icon ?? Icons.add,
+      label: label,
+      imageUrl: _photoUrls[slot],
+      uploading: _uploadingPhotos.contains(slot),
+      onTap: () => _uploadPhoto(slot),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        _PhoneVerificationCard(),
-        SizedBox(height: 24),
-        _SectionHeader(label: '프로필 사진', note: '선택'),
-        SizedBox(height: 10),
+      children: [
+        const _PhoneVerificationCard(),
+        const SizedBox(height: 24),
+        const _SectionHeader(label: '프로필 사진', note: '선택'),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
-              child: _PhotoUploadSlot(
+              child: _buildPhotoSlot(
+                0,
                 icon: Icons.camera_alt_outlined,
                 label: '대표',
-                selected: true,
               ),
             ),
-            SizedBox(width: 10),
-            Expanded(child: _PhotoUploadSlot()),
-            SizedBox(width: 10),
-            Expanded(child: _PhotoUploadSlot()),
+            const SizedBox(width: 10),
+            Expanded(child: _buildPhotoSlot(1)),
+            const SizedBox(width: 10),
+            Expanded(child: _buildPhotoSlot(2)),
           ],
         ),
-        SizedBox(height: 24),
-        _SectionHeader(label: '직장 / 신분 인증', note: '선택 — 회차 신청 시 필수'),
-        SizedBox(height: 10),
-        _VerificationDocumentCard(
-          icon: Icons.credit_card_outlined,
-          title: '명함',
-          subtitle: '제출 준비됨',
-          selected: true,
-        ),
-        SizedBox(height: 10),
-        _VerificationDocumentCard(
-          icon: Icons.shield_outlined,
-          title: '사원증',
-          subtitle: '미선택',
-        ),
-        SizedBox(height: 10),
-        _VerificationDocumentCard(
-          icon: Icons.alternate_email,
-          title: '회사 이메일',
-          subtitle: '미선택',
-        ),
-        SizedBox(height: 10),
-        _VerificationDocumentCard(
-          icon: Icons.article_outlined,
-          title: '사업자등록증',
-          subtitle: '미선택',
-        ),
+        const SizedBox(height: 24),
+        const _SectionHeader(label: '직장 / 신분 인증', note: '선택 — 회차 신청 시 필수'),
+        const SizedBox(height: 10),
+        for (var i = 0; i < _documents.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          _VerificationDocumentCard(
+            icon: _documents[i].icon,
+            title: _documents[i].title,
+            submitted: _submittedDocs.contains(_documents[i].title),
+            uploading: _uploadingDocs.contains(_documents[i].title),
+            onTap: () => _submitDocument(_documents[i].title),
+          ),
+        ],
       ],
     );
   }
@@ -3096,49 +3304,88 @@ class _PhotoUploadSlot extends StatelessWidget {
   const _PhotoUploadSlot({
     this.icon = Icons.add,
     this.label,
-    this.selected = false,
+    this.imageUrl,
+    this.uploading = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String? label;
-  final bool selected;
+  final String? imageUrl;
+  final bool uploading;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: CustomPaint(
-        painter: _DashedRoundedBorderPainter(
-          color: selected
-              ? AppColors.line
-              : AppColors.line.withValues(alpha: 0.9),
-          fillColor: selected
-              ? AppColors.parchment.withValues(alpha: 0.58)
-              : Colors.white.withValues(alpha: 0.56),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: selected ? AppColors.burgundy : AppColors.mutedText,
-                size: selected ? 24 : 28,
-              ),
-              if (label != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  label!,
-                  style: const TextStyle(
-                    color: AppColors.cocoa,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ],
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final selected = hasImage;
+
+    Widget content;
+    if (hasImage) {
+      content = ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.network(
+          imageUrl!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) => const Center(
+            child: Icon(
+              Icons.broken_image_outlined,
+              color: AppColors.mutedText,
+              size: 26,
+            ),
           ),
         ),
+      );
+    } else if (uploading) {
+      content = const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(AppColors.burgundy),
+          ),
+        ),
+      );
+    } else {
+      content = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.mutedText, size: 28),
+            if (label != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                label!,
+                style: const TextStyle(
+                  color: AppColors.cocoa,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: uploading ? null : onTap,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: hasImage
+            ? content
+            : CustomPaint(
+                painter: _DashedRoundedBorderPainter(
+                  color: selected
+                      ? AppColors.line
+                      : AppColors.line.withValues(alpha: 0.9),
+                  fillColor: Colors.white.withValues(alpha: 0.56),
+                ),
+                child: content,
+              ),
       ),
     );
   }
@@ -3148,72 +3395,102 @@ class _VerificationDocumentCard extends StatelessWidget {
   const _VerificationDocumentCard({
     required this.icon,
     required this.title,
-    required this.subtitle,
-    this.selected = false,
+    this.submitted = false,
+    this.uploading = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
-  final String subtitle;
-  final bool selected;
+  final bool submitted;
+  final bool uploading;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.burgundy : Colors.white,
+    final selected = submitted;
+    final String subtitle;
+    if (uploading) {
+      subtitle = '제출 중…';
+    } else if (submitted) {
+      subtitle = '제출됨 — 운영진 확인 대기';
+    } else {
+      subtitle = '탭하여 자료 제출';
+    }
+
+    return Material(
+      color: selected ? AppColors.burgundy : Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: uploading ? null : onTap,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: selected ? AppColors.gold : AppColors.line),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: selected
-                  ? Colors.white.withValues(alpha: 0.14)
-                  : AppColors.blush,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: selected ? AppColors.butter : AppColors.burgundy,
-              size: 22,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? AppColors.gold : AppColors.line,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: selected ? Colors.white : AppColors.cocoa,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.14)
+                      : AppColors.blush,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: selected
-                        ? Colors.white.withValues(alpha: 0.74)
-                        : AppColors.mutedText,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                  ),
+                child: Icon(
+                  icon,
+                  color: selected ? AppColors.butter : AppColors.burgundy,
+                  size: 22,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: selected ? Colors.white : AppColors.cocoa,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: selected
+                            ? Colors.white.withValues(alpha: 0.74)
+                            : AppColors.mutedText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (uploading)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(AppColors.burgundy),
+                  ),
+                )
+              else if (submitted)
+                const Icon(Icons.check, color: AppColors.butter, size: 22),
+            ],
           ),
-          if (selected)
-            const Icon(Icons.check, color: AppColors.butter, size: 22),
-        ],
+        ),
       ),
     );
   }

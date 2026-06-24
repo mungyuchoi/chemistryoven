@@ -34,26 +34,17 @@ class ChemistryOvenApp extends StatelessWidget {
 
 /// 앱 시작 시 로그인 화면을 먼저 보여주고,
 /// 로그인(또는 둘러보기) 후 메인 탭으로 전환하는 게이트.
-class _RootGate extends StatefulWidget {
+/// 진입 여부는 sessionController.entered 로 관리(로그아웃 시 다시 로그인 화면).
+class _RootGate extends StatelessWidget {
   const _RootGate();
 
   @override
-  State<_RootGate> createState() => _RootGateState();
-}
-
-class _RootGateState extends State<_RootGate> {
-  bool _entered = false;
-
-  @override
   Widget build(BuildContext context) {
-    if (!_entered) {
+    final entered = AppScope.of(context).sessionController.entered;
+    if (!entered) {
       return LoginScreen(
-        onCompleted: () {
-          if (!mounted) {
-            return;
-          }
-          setState(() => _entered = true);
-        },
+        onCompleted: () =>
+            AppScope.of(context).sessionController.markEntered(),
       );
     }
     return const MainTabScreen();

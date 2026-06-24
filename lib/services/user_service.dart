@@ -78,4 +78,28 @@ class UserService {
       'lastActiveAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  /// 직장/신분 인증 자료 제출 → 운영자 승인 대기(pending).
+  Future<void> submitJobVerification(String uid, String docUrl) {
+    return _fs.userDoc(uid).set({
+      'verification': {'job': 'pending'},
+      'jobVerificationDocs': FieldValue.arrayUnion([docUrl]),
+      'lastActiveAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// 키·생년월일 등 기본 정보 저장.
+  Future<void> updateBasicInfo({
+    required String uid,
+    String? name,
+    String? birth,
+    int? height,
+  }) {
+    return _fs.userDoc(uid).set({
+      if (name != null && name.isNotEmpty) 'realName': name,
+      if (birth != null && birth.isNotEmpty) 'birth': birth,
+      if (height != null) 'height': height,
+      'lastActiveAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }
