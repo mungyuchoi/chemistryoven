@@ -33,6 +33,33 @@ class ApplicationRepository {
     return doc.exists;
   }
 
+  /// 회차 신청자 목록 + 각 사용자 프로필을 병합해 반환 (운영자용).
+  /// 각 항목: { uid, ...application, 'user': {...users/{uid}} }
+  Future<List<Map<String, dynamic>>> fetchSessionApplicants(
+    String sessionId,
+  ) async {
+    final apps = await FirebaseService.instance.applications(sessionId).get();
+    final result = <Map<String, dynamic>>[];
+    for (final doc in apps.docs) {
+      final userSnap =
+          await FirebaseService.instance.userDoc(doc.id).get();
+      result.add({
+        'uid': doc.id,
+        ...doc.data(),
+        'user': userSnap.data() ?? <String, dynamic>{},
+      });
+    }
+    return result;
+  }
+
+  /// 신청 상태 변경 (applied | selected | held | rejected).
+  Future<void> updateStatus(String sessionId, String uid, String status) {
+    return FirebaseService.instance.applications(sessionId).doc(uid).set(
+      {'status': status},
+      SetOptions(merge: true),
+    );
+  }
+
   /// 신청 취소.
   Future<void> cancel(String sessionId, String uid) {
     return FirebaseService.instance.applications(sessionId).doc(uid).delete();

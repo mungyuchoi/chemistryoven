@@ -4,10 +4,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../data/models/chemistry_session.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../data/repositories/application_repository.dart';
 import '../../../data/repositories/session_repository.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/storage_service.dart';
+import '../../../services/user_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 enum _AdminScreen {
@@ -61,6 +63,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _publishingSession = false;
   String? _selectedSessionId;
   bool _closingSession = false;
+  List<_AdminApplicantData> _realApplicants = [];
+  bool _loadingApplicants = false;
+  bool _verifyingJob = false;
+  bool _writingStatus = false;
   bool _scoringSession = false;
   bool _uploadingCover = false;
   Map<String, _SeatAssignment> _seatAssignments = Map.of(
@@ -157,6 +163,165 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _go(_AdminScreen screen) {
     setState(() => _screen = screen);
+    if (screen == _AdminScreen.applicants) {
+      _loadApplicants();
+    }
+  }
+
+  /// D2 — 선택된 회차의 실제 신청자 목록을 Firestore 에서 불러와
+  /// 표시용 [_AdminApplicantData] 로 변환.
+  Future<void> _loadApplicants() async {
+    final sessionId = _selectedSessionId;
+    if (sessionId == null) {
+      setState(() => _realApplicants = []);
+      return;
+    }
+    setState(() => _loadingApplicants = true);
+    try {
+      final items = await ApplicationRepository.instance
+          .fetchSessionApplicants(sessionId);
+      final mapped = items.map(_mapApplicant).toList();
+      if (!mounted) return;
+      setState(() => _realApplicants = mapped);
+    } catch (e) {
+      debugPrint('[applicants-load] $e');
+      if (!mounted) return;
+      setState(() => _realApplicants = []);
+    } finally {
+      if (mounted) {
+        setState(() => _loadingApplicants = false);
+      }
+    }
+  }
+
+  _AdminApplicantData _mapApplicant(Map<String, dynamic> item) {
+    final user = (item['user'] as Map?) ?? const {};
+    final name =
+        (item['displayName'] as String?) ??
+        (user['realName'] as String?) ??
+        '신청자';
+    final initial = name.isNotEmpty ? name.substring(0, 1) : '?';
+    final genderRaw =
+        (item['gender'] as String?) ?? (user['gender'] as String?);
+    final gender = genderRaw == 'M' ? '남' : '여';
+    final mbti = (user['mbti'] as String?) ?? '-';
+    final heightRaw = user['height'];
+    final height = heightRaw != null ? '${heightRaw}cm' : '-';
+    final birth = (user['birth'] as String?) ?? '-';
+    int age = 0;
+    if (birth.length >= 4) {
+      final year = int.tryParse(birth.substring(0, 4));
+      if (year != null) {
+        age = DateTime.now().year - year;
+      }
+    }
+    final job = (user['region'] as String?) ?? '-';
+    final character = (item['baseCharacterId'] as String?) ?? '-';
+    final statusRaw = (item['status'] as String?) ?? 'applied';
+    final status = switch (statusRaw) {
+      'selected' => '선정',
+      'held' => '보류',
+      'rejected' => '탈락',
+      _ => '신청',
+    };
+    final verification = (user['verification'] as Map?) ?? const {};
+    final verificationJob = (verification['job'] as String?) ?? 'none';
+    return _AdminApplicantData(
+      uid: (item['uid'] as String?) ?? '',
+      initial: initial,
+      name: name,
+      gender: gender,
+      age: age,
+      birth: birth,
+      height: height,
+      mbti: mbti,
+      job: job,
+      character: character,
+      status: status,
+      score: (item['totalScore'] as num?)?.toInt() ?? 0,
+      strictScore: (item['strictScore'] as num?)?.toInt() ?? 0,
+      objectiveScore: (item['psychologyScore'] as num?)?.toInt() ?? 0,
+      note: '',
+      selected: statusRaw == 'selected',
+      verificationJob: verificationJob,
+    );
+  }
+
+  /// D4 — 신청 상태 쓰기(탈락/보류/선정) 후 새로고침 + 목록으로 복귀.
+  Future<void> _writeApplicantStatus(
+    _AdminApplicantData applicant,
+    String status,
+  ) async {
+    final sessionId = _selectedSessionId;
+    if (_writingStatus || applicant.uid.isEmpty || sessionId == null) return;
+    setState(() => _writingStatus = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final label = switch (status) {
+      'selected' => '선정',
+      'held' => '보류',
+      'rejected' => '탈락',
+      _ => '변경',
+    };
+    try {
+      await ApplicationRepository.instance.updateStatus(
+        sessionId,
+        applicant.uid,
+        status,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('$label 처리했어요')));
+      _go(_AdminScreen.applicants);
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('처리에 실패했어요. 잠시 후 다시 시도해 주세요')),
+      );
+      debugPrint('[applicant-status] $e');
+    } finally {
+      if (mounted) {
+        setState(() => _writingStatus = false);
+      }
+    }
+  }
+
+  /// D5 — 직장 인증 승인/반려 후 새로고침.
+  Future<void> _setJobVerification(
+    _AdminApplicantData applicant,
+    String status,
+  ) async {
+    if (_verifyingJob || applicant.uid.isEmpty) return;
+    setState(() => _verifyingJob = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await UserService.instance.setJobVerificationStatus(
+        applicant.uid,
+        status,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(status == 'approved' ? '직장 인증을 승인했어요' : '직장 인증을 반려했어요'),
+        ),
+      );
+      await _loadApplicants();
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('처리에 실패했어요. 잠시 후 다시 시도해 주세요')),
+      );
+      debugPrint('[job-verify] $e');
+    } finally {
+      if (mounted) {
+        setState(() => _verifyingJob = false);
+      }
+    }
+  }
+
+  String _jobVerificationLabel(String status) {
+    return switch (status) {
+      'pending' => '대기',
+      'approved' => '승인됨',
+      'rejected' => '반려됨',
+      _ => '미제출',
+    };
   }
 
   @override
@@ -1140,25 +1305,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 14),
-        for (final applicant in applicants) ...[
-          _ApplicantListCard(
-            applicant: applicant,
-            onTap: () {
-              setState(() {
-                _selectedApplicant = applicant;
-                _applicantTab = 0;
-                _screen = _AdminScreen.applicantDetail;
-              });
-            },
-          ),
-          const SizedBox(height: 10),
-        ],
+        if (_loadingApplicants)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_selectedSessionId != null &&
+            _realApplicants.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Text(
+                '아직 신청자가 없어요',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.mutedText,
+                ),
+              ),
+            ),
+          )
+        else
+          for (final applicant in applicants) ...[
+            _ApplicantListCard(
+              applicant: applicant,
+              onTap: () {
+                setState(() {
+                  _selectedApplicant = applicant;
+                  _applicantTab = 0;
+                  _screen = _AdminScreen.applicantDetail;
+                });
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
       ],
     );
   }
 
   List<_AdminApplicantData> _sortedApplicants() {
-    final applicants = [..._adminApplicants];
+    final applicants = _realApplicants.isNotEmpty
+        ? [..._realApplicants]
+        : [..._adminApplicants];
     if (_applicantSort == 1) {
       applicants.sort((a, b) => b.score.compareTo(a.score));
     }
@@ -1259,6 +1445,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
         ),
+        if (applicant.uid.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          AppCard(
+            color: Colors.white,
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '직장 인증',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.cocoa,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      _jobVerificationLabel(applicant.verificationJob),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.mutedText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WideButton(
+                        label: '인증 승인',
+                        onTap: () =>
+                            _setJobVerification(applicant, 'approved'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WideButton(
+                        label: '반려',
+                        muted: true,
+                        onTap: () =>
+                            _setJobVerification(applicant, 'rejected'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         Row(
           children: [
@@ -1295,17 +1533,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: _WideButton(label: '탈락', muted: true, onTap: () {}),
+              child: _WideButton(
+                label: '탈락',
+                muted: true,
+                onTap: () {
+                  if (applicant.uid.isNotEmpty &&
+                      _selectedSessionId != null) {
+                    _writeApplicantStatus(applicant, 'rejected');
+                  }
+                },
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _WideButton(label: '보류', muted: true, onTap: () {}),
+              child: _WideButton(
+                label: '보류',
+                muted: true,
+                onTap: () {
+                  if (applicant.uid.isNotEmpty &&
+                      _selectedSessionId != null) {
+                    _writeApplicantStatus(applicant, 'held');
+                  }
+                },
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _WideButton(
                 label: '선정',
-                onTap: () => _go(_AdminScreen.selectionPool),
+                onTap: () {
+                  if (applicant.uid.isNotEmpty &&
+                      _selectedSessionId != null) {
+                    _writeApplicantStatus(applicant, 'selected');
+                  } else {
+                    _go(_AdminScreen.selectionPool);
+                  }
+                },
               ),
             ),
           ],
@@ -2375,6 +2638,8 @@ class _AdminApplicantData {
     required this.objectiveScore,
     required this.note,
     required this.selected,
+    this.uid = '',
+    this.verificationJob = 'none',
   });
 
   final String initial;
@@ -2392,6 +2657,8 @@ class _AdminApplicantData {
   final int objectiveScore;
   final String note;
   final bool selected;
+  final String uid;
+  final String verificationJob;
 }
 
 class _SeatAssignment {

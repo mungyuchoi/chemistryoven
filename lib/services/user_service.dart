@@ -88,6 +88,13 @@ class UserService {
     }, SetOptions(merge: true));
   }
 
+  /// 직장/신분 인증 승인·반려 (운영자용). status: 'approved' | 'rejected' | 'pending'
+  Future<void> setJobVerificationStatus(String uid, String status) {
+    return _fs.userDoc(uid).set({
+      'verification': {'job': status},
+    }, SetOptions(merge: true));
+  }
+
   /// 키·생년월일 등 기본 정보 저장.
   Future<void> updateBasicInfo({
     required String uid,
