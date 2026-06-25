@@ -33,6 +33,14 @@ class StorageService {
     return _uploadCompressed(file, 'verification/$uid/job_${_randomName()}.jpg');
   }
 
+  /// 회차 커버(키비주얼) 이미지 업로드 → 다운로드 URL. (운영자용)
+  Future<String> uploadSessionCover(String sessionId, XFile file) {
+    return _uploadCompressed(
+      file,
+      'sessions/$sessionId/cover_${_randomName()}.jpg',
+    );
+  }
+
   Future<String> _uploadCompressed(XFile file, String path) async {
     final original = await file.readAsBytes();
     final compressed = await FlutterImageCompress.compressWithList(

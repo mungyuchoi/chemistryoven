@@ -23,11 +23,12 @@ service firebase.storage {
       allow read, write: if isOwner(uid);
     }
 
-    // 회차 키비주얼 / 베이킹 품목 — 읽기는 로그인 사용자,
-    // 업로드는 운영자 경로(Admin SDK/Functions)로 처리 → 클라이언트 쓰기 차단
+    // 회차 키비주얼 / 베이킹 품목 — 읽기는 로그인 사용자.
+    // TODO: 운영자 커스텀 클레임 도입 후 isAdmin 으로 제한.
+    //       (Storage 규칙은 Firestore roles를 못 읽어 임시로 로그인 사용자 허용)
     match /sessions/{sessionId}/{allPaths=**} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if isSignedIn();
     }
   }
 }

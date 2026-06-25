@@ -42,6 +42,7 @@ dependencies:
   firebase_storage: ^12.3.5
   cloud_functions: ^5.1.4
   firebase_messaging: ^15.1.4
+  # (cloud_functions: 어드민 AI 점수계산 호출용 — 위에 이미 포함)
 
   # 소셜 로그인 (Android: 구글 / iOS: 구글·애플 · 카카오는 Functions 연동 예정)
   google_sign_in: ^6.2.1

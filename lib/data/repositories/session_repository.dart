@@ -41,4 +41,14 @@ class SessionRepository {
     final doc = await _col.doc(id).get();
     return doc.exists ? ChemistrySession.fromDoc(doc) : null;
   }
+
+  /// 회차 상태 변경(예: 'closed', 'confirmed').
+  Future<void> updateStatus(String id, String status) {
+    return _col.doc(id).set({'status': status}, SetOptions(merge: true));
+  }
+
+  /// 회차 커버(키비주얼) 이미지 URL 저장.
+  Future<void> updateCover(String id, String coverUrl) {
+    return _col.doc(id).set({'keyVisualUrl': coverUrl}, SetOptions(merge: true));
+  }
 }

@@ -6,6 +6,8 @@ import '../../../data/models/chemistry_session.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../data/repositories/session_repository.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/functions_service.dart';
+import '../../../services/storage_service.dart';
 import '../../../shared/providers/app_scope.dart';
 
 enum _AdminScreen {
@@ -57,6 +59,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final TextEditingController _sessionPriceCtrl = TextEditingController();
   final TextEditingController _sessionMenuCtrl = TextEditingController();
   bool _publishingSession = false;
+  String? _selectedSessionId;
+  bool _closingSession = false;
+  bool _scoringSession = false;
+  bool _uploadingCover = false;
   Map<String, _SeatAssignment> _seatAssignments = Map.of(
     _initialSeatAssignments,
   );
@@ -120,7 +126,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case _AdminScreen.sessionDetail:
         return _buildSessionDetail(
           context,
-          appState.repository.fetchFeaturedClass(),
+          _resolveSelectedClass(appState),
         );
       case _AdminScreen.sessionCreate:
         return _buildSessionCreate(context);
@@ -164,8 +170,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.dispose();
   }
 
+  /// 선택된 회차 id 로 실제 회차를 찾아 표시용 클래스로 변환.
+  /// 선택이 없거나 못 찾으면 데모 대표 회차로 폴백.
+  ChemistryClass _resolveSelectedClass(AppState appState) {
+    final sessions = appState.sessionsController.sessions;
+    final id = _selectedSessionId;
+    if (id != null) {
+      for (final session in sessions) {
+        if (session.id == id) {
+          return session.toDisplayClass();
+        }
+      }
+    }
+    return appState.repository.fetchFeaturedClass();
+  }
+
   /// 회차 게시 → Firestore sessions 에 생성.
-  Future<void> _publishSession() async {
+  /// [status] 가 'draft' 면 임시저장, 기본은 모집중('recruiting').
+  Future<void> _publishSession({String status = 'recruiting'}) async {
     final title = _sessionTitleCtrl.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -175,6 +197,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
     setState(() => _publishingSession = true);
     final messenger = ScaffoldMessenger.of(context);
+    final isDraft = status == 'draft';
     try {
       final session = ChemistrySession(
         id: '',
@@ -186,25 +209,106 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         recruitMale: _menCount,
         recruitFemale: _womenCount,
         menuName: _sessionMenuCtrl.text.trim(),
-        status: 'recruiting',
+        status: status,
         createdBy: FirebaseService.instance.uid,
       );
       await SessionRepository.instance.createSession(session);
       if (!mounted) return;
       _clearSessionForm();
       messenger.showSnackBar(
-        const SnackBar(content: Text('회차가 게시됐어요')),
+        SnackBar(content: Text(isDraft ? '임시저장했어요' : '회차가 게시됐어요')),
       );
       _go(_AdminScreen.sessions);
     } catch (error) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('게시에 실패했어요. 운영자 권한을 확인해 주세요')),
+        SnackBar(
+          content: Text(
+            isDraft ? '임시저장에 실패했어요. 잠시 후 다시 시도해 주세요' : '게시에 실패했어요. 운영자 권한을 확인해 주세요',
+          ),
+        ),
       );
       debugPrint('[session-create] $error');
     } finally {
       if (mounted) {
         setState(() => _publishingSession = false);
       }
+    }
+  }
+
+  /// C2 — 회차 마감 (status='closed').
+  Future<void> _closeSession(ChemistryClass classData) async {
+    if (_closingSession) return;
+    setState(() => _closingSession = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await SessionRepository.instance.updateStatus(classData.id, 'closed');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('회차를 마감했어요')),
+      );
+      _go(_AdminScreen.sessions);
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('마감에 실패했어요. 잠시 후 다시 시도해 주세요')),
+      );
+      debugPrint('[session-close] $error');
+    } finally {
+      if (mounted) {
+        setState(() => _closingSession = false);
+      }
+    }
+  }
+
+  /// C4 — AI 점수계산 (배포된 Cloud Function 호출).
+  Future<void> _runChemistryScoring(ChemistryClass classData) async {
+    if (_scoringSession) return;
+    setState(() => _scoringSession = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final res = await FunctionsService.instance.computeChemistryScores(
+        classData.id,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '점수 계산 완료 · 테이블 ${(res['tables'] as List?)?.length ?? 0}개',
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('점수 계산에 실패했어요. 잠시 후 다시 시도해 주세요')),
+      );
+      debugPrint('[scoring] $e');
+    } finally {
+      if (mounted) setState(() => _scoringSession = false);
+    }
+  }
+
+  /// C5 — 세션 커버 이미지 업로드 (선택 → 업로드 → 문서 갱신).
+  Future<void> _uploadSessionCover(String sessionId) async {
+    if (_uploadingCover) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final file = await StorageService.instance.pickImage();
+      if (file == null) return;
+      if (!mounted) return;
+      setState(() => _uploadingCover = true);
+      final url = await StorageService.instance.uploadSessionCover(
+        sessionId,
+        file,
+      );
+      await SessionRepository.instance.updateCover(sessionId, url);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('커버 이미지를 등록했어요')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('커버 등록에 실패했어요. 잠시 후 다시 시도해 주세요')),
+      );
+      debugPrint('[cover-upload] $e');
+    } finally {
+      if (mounted) setState(() => _uploadingCover = false);
     }
   }
 
@@ -684,7 +788,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               classData: classes[i],
               status: classes[i].statusLabel,
               active: i == 0,
-              onTap: () => _go(_AdminScreen.sessionDetail),
+              onTap: () {
+                setState(() => _selectedSessionId = classes[i].id);
+                _go(_AdminScreen.sessionDetail);
+              },
             ),
             if (i != classes.length - 1) const SizedBox(height: 12),
           ],
@@ -697,13 +804,45 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
-          title: '8기 상세',
-          subtitle: '모집중 · D-23',
+          title: '${classData.title} 상세',
+          subtitle: classData.statusLabel,
           onBack: () => _go(_AdminScreen.sessions),
           actionIcon: Icons.edit_outlined,
         ),
         const SizedBox(height: 14),
-        const _SessionCoverStrip(),
+        InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: _uploadingCover
+              ? null
+              : () => _uploadSessionCover(classData.id),
+          child: Stack(
+            children: [
+              const _SessionCoverStrip(),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.burgundy,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _uploadingCover ? '업로드 중...' : '커버 변경',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 12),
         AppCard(
           color: Colors.white,
@@ -713,7 +852,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _InfoLine(
                 icon: Icons.calendar_month_outlined,
                 label: '일시',
-                value: '${classData.dateText} 14:00 - 18:00',
+                value: '${classData.dateText} ${classData.timeText}',
               ),
               const _DividerLine(),
               _InfoLine(
@@ -722,10 +861,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 value: classData.place,
               ),
               const _DividerLine(),
-              const _InfoLine(
+              _InfoLine(
                 icon: Icons.person_outline_rounded,
                 label: '모집',
-                value: '남 4 / 여 4 (총 8명)',
+                value: classData.capacityLabel,
               ),
               const _DividerLine(),
               _InfoLine(
@@ -766,6 +905,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
         const SizedBox(height: 14),
+        _WideButton(
+          label: _scoringSession ? '계산 중...' : 'AI 인원 선정 · 점수 계산',
+          onTap: () {
+            if (!_scoringSession) {
+              _runChemistryScoring(classData);
+            }
+          },
+        ),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -773,7 +921,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _WideButton(label: '회차마감', onTap: () {}),
+              child: _WideButton(
+                label: _closingSession ? '마감 중...' : '회차마감',
+                onTap: () {
+                  if (!_closingSession) {
+                    _closeSession(classData);
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -903,7 +1058,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: _WideButton(label: '임시저장', muted: true, onTap: () {}),
+              child: _WideButton(
+                label: '임시저장',
+                muted: true,
+                onTap: () {
+                  if (!_publishingSession) {
+                    _publishSession(status: 'draft');
+                  }
+                },
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -911,7 +1074,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 label: _publishingSession ? '게시 중...' : '회차 게시',
                 onTap: () {
                   if (!_publishingSession) {
-                    _publishSession();
+                    _publishSession(status: 'recruiting');
                   }
                 },
               ),
