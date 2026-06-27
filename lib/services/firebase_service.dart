@@ -20,8 +20,7 @@ class FirebaseService {
   String? get uid => auth.currentUser?.uid;
 
   // ── 최상위 컬렉션 ──────────────────────────────────────────────
-  CollectionReference<Map<String, dynamic>> get users =>
-      db.collection('users');
+  CollectionReference<Map<String, dynamic>> get users => db.collection('users');
   CollectionReference<Map<String, dynamic>> get characters =>
       db.collection('characters');
   CollectionReference<Map<String, dynamic>> get sessions =>
@@ -30,12 +29,15 @@ class FirebaseService {
       db.collection('matches');
   CollectionReference<Map<String, dynamic>> get reports =>
       db.collection('reports');
+  CollectionReference<Map<String, dynamic>> get payments =>
+      db.collection('payments');
+  CollectionReference<Map<String, dynamic>> get reviews =>
+      db.collection('reviews');
   CollectionReference<Map<String, dynamic>> get prompts =>
       db.collection('prompts');
 
   // ── 문서 / 서브컬렉션 ─────────────────────────────────────────
-  DocumentReference<Map<String, dynamic>> userDoc(String uid) =>
-      users.doc(uid);
+  DocumentReference<Map<String, dynamic>> userDoc(String uid) => users.doc(uid);
 
   DocumentReference<Map<String, dynamic>> sessionDoc(String sessionId) =>
       sessions.doc(sessionId);

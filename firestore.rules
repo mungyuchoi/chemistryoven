@@ -84,6 +84,34 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    function ownsPayment(data) {
+      return isSignedIn()
+        && (
+          ('uid' in data && data.uid == request.auth.uid)
+          || ('userId' in data && data.userId == request.auth.uid)
+        );
+    }
+
+    match /payments/{paymentId} {
+      allow read: if ownsPayment(resource.data) || isAdmin();
+      allow create: if ownsPayment(request.resource.data) || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    function ownsReview(data) {
+      return isSignedIn()
+        && (
+          ('uid' in data && data.uid == request.auth.uid)
+          || ('authorUid' in data && data.authorUid == request.auth.uid)
+        );
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if ownsReview(resource.data) || isAdmin();
+      allow create: if ownsReview(request.resource.data) || isAdmin();
+      allow update, delete: if ownsReview(resource.data) || isAdmin();
+    }
+
     // 전역 설정 / 프롬프트
     match /config/{document} {
       allow read: if isSignedIn();

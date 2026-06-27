@@ -23,16 +23,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
-    // 실제 회차가 있으면 Firestore 데이터, 없으면 데모로 폴백
+    // Firestore 실데이터만 표시 (데모 폴백 없음)
     final realSessions = appState.sessionsController.sessions
         .map((session) => session.toDisplayClass())
         .toList();
-    final featuredClass = realSessions.isNotEmpty
+    final ChemistryClass? featuredClass = realSessions.isNotEmpty
         ? realSessions.first
-        : appState.repository.fetchFeaturedClass();
-    final classes = realSessions.isNotEmpty
-        ? realSessions
-        : appState.repository.fetchClasses();
+        : null;
+    final classes = realSessions;
     final character = appState.repository.fetchFeaturedCharacter();
 
     return SafeArea(
@@ -53,10 +51,33 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 22),
                       const _HomeSlogan(),
                       const SizedBox(height: 38),
-                      _FeaturedApplicationCard(
-                        demoClass: featuredClass,
-                        onApply: () => onApplyClass(featuredClass),
-                      ),
+                      if (featuredClass != null)
+                        _FeaturedApplicationCard(
+                          demoClass: featuredClass,
+                          onApply: () => onApplyClass(featuredClass),
+                        )
+                      else
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 24,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.line),
+                          ),
+                          child: Text(
+                            '아직 열린 회차가 없어요. 곧 새로운 회차가 열릴 거예요.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.mutedText,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                          ),
+                        ),
                       const SizedBox(height: 22),
                       Text(
                         '케미스트리오븐은 이렇게 진행돼요',
@@ -79,13 +100,26 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      for (final demoClass in classes.take(2)) ...[
-                        _ClassPreviewCard(
-                          demoClass: demoClass,
-                          onApply: () => onApplyClass(demoClass),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
+                      if (classes.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Text(
+                            '아직 추천할 회차가 없어요.',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.mutedText,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                          ),
+                        )
+                      else
+                        for (final demoClass in classes.take(2)) ...[
+                          _ClassPreviewCard(
+                            demoClass: demoClass,
+                            onApply: () => onApplyClass(demoClass),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
                       const SizedBox(height: 14),
                       _LabTeaser(character: character, onOpenLab: onOpenLab),
                     ],

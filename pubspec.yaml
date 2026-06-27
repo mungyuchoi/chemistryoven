@@ -44,10 +44,11 @@ dependencies:
   firebase_messaging: ^15.1.4
   # (cloud_functions: 어드민 AI 점수계산 호출용 — 위에 이미 포함)
 
-  # 소셜 로그인 (Android: 구글 / iOS: 구글·애플 · 카카오는 Functions 연동 예정)
+  # 소셜 로그인 (Android: 구글·카카오 / iOS: 구글·애플·카카오)
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.3
   crypto: ^3.0.5
+  kakao_flutter_sdk_user: ^1.9.5
 
   # 이미지 선택 · 압축 (프로필/인증 사진 업로드)
   image_picker: ^1.1.2

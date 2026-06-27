@@ -10,6 +10,9 @@ import {
   SCORE_SELECTION_OUTPUT_INSTRUCTION,
 } from "./prompts";
 
+// 카카오 로그인 커스텀 토큰 함수 재노출
+export { createKakaoCustomToken } from "./kakao";
+
 initializeApp();
 const db = getFirestore();
 

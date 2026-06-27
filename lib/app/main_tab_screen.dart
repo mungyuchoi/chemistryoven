@@ -91,7 +91,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
       _showSessionGate(
         context,
         title: '오브닝은 선정된 참가자에게 열려요.',
-        subtitle: '검토용 로그인 또는 케미 분석을 완료하면 당일 상태 화면을 볼 수 있어요.',
+        subtitle: '케미 분석을 완료하면 당일 상태 화면을 볼 수 있어요.',
         onReady: () {
           if (!mounted) {
             return;
@@ -127,8 +127,9 @@ class _MainTabScreenState extends State<MainTabScreen> {
 
     // 실제 Firestore 신청 — 로그인 사용자 + 실제 회차일 때만
     final uid = FirebaseService.instance.uid;
-    final isRealSession = appState.sessionsController.sessions
-        .any((session) => session.id == demoClass.id);
+    final isRealSession = appState.sessionsController.sessions.any(
+      (session) => session.id == demoClass.id,
+    );
     if (uid != null && isRealSession) {
       final profile = appState.currentUserController.profile;
       unawaited(
@@ -137,7 +138,8 @@ class _MainTabScreenState extends State<MainTabScreen> {
               sessionId: demoClass.id,
               uid: uid,
               displayName:
-                  profile?.displayName ?? appState.sessionController.displayName,
+                  profile?.displayName ??
+                  appState.sessionController.displayName,
               gender: profile?.gender,
               baseCharacterId: profile?.baseCharacterId,
             )
@@ -172,7 +174,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
   void _showSessionGate(
     BuildContext context, {
     String title = '게스트로 둘러보는 중이에요.',
-    String subtitle = '3분 케미 분석을 완료하거나 검토용 로그인으로 전체 화면을 확인할 수 있어요.',
+    String subtitle = '3분 케미 분석을 완료하면 전체 화면을 확인할 수 있어요.',
     VoidCallback? onReady,
   }) {
     showModalBottomSheet<void>(
@@ -190,8 +192,6 @@ class _MainTabScreenState extends State<MainTabScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const StatusBadge(label: 'GUEST PREVIEW'),
-                const SizedBox(height: 12),
                 Text(title, style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
                 Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
@@ -205,21 +205,6 @@ class _MainTabScreenState extends State<MainTabScreen> {
                     },
                     icon: const Icon(Icons.auto_awesome),
                     label: const Text('3분 케미 분석 시작'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      final appState = AppScope.of(context);
-                      appState.sessionController.loginAsDemoUser();
-                      appState.modeController.setMode(DemoMode.user);
-                      Navigator.pop(sheetContext);
-                      onReady?.call();
-                    },
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('검토용 로그인으로 보기'),
                   ),
                 ),
               ],

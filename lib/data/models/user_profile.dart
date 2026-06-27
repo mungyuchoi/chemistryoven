@@ -11,6 +11,7 @@ class UserProfile {
     this.region,
     this.baseCharacterId,
     this.onboardingCompleted = false,
+    this.roles = const [],
   });
 
   final String uid;
@@ -22,6 +23,7 @@ class UserProfile {
   final String? region;
   final String? baseCharacterId;
   final bool onboardingCompleted;
+  final List<String> roles;
 
   /// '남성' | '여성' | null
   String? get genderKr => switch (gender) {
@@ -29,6 +31,8 @@ class UserProfile {
     'F' => '여성',
     _ => null,
   };
+
+  bool get isAdmin => roles.contains('admin');
 
   factory UserProfile.fromMap(String uid, Map<String, dynamic> data) {
     final onboarding =
@@ -43,6 +47,10 @@ class UserProfile {
       region: data['region'] as String?,
       baseCharacterId: onboarding['baseCharacterId'] as String?,
       onboardingCompleted: (onboarding['completed'] as bool?) ?? false,
+      roles: (data['roles'] as List<dynamic>?)
+              ?.map((role) => role.toString())
+              .toList(growable: false) ??
+          const [],
     );
   }
 }

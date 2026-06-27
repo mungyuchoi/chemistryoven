@@ -14,7 +14,6 @@ class ChemistryLabScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
     final characters = appState.repository.fetchCharacters();
-    final reports = appState.repository.fetchReports();
 
     // 온보딩으로 추천된 내 기본 캐릭터를 우선 표시 (없으면 데모 featured)
     final baseCharacterId =
@@ -79,10 +78,6 @@ class ChemistryLabScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 26),
-                    const _SectionLabel('최근 리포트'),
-                    const SizedBox(height: 10),
-                    _RecentReportTile(report: reports.first),
                   ],
                 ),
               ),

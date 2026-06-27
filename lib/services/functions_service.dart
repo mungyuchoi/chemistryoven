@@ -22,4 +22,13 @@ class FunctionsService {
         .call(<String, dynamic>{'sessionId': sessionId});
     return Map<String, dynamic>.from(result.data as Map);
   }
+
+  /// 카카오 access token → Firebase 커스텀 토큰.
+  Future<String> createKakaoCustomToken(String accessToken) async {
+    final result = await _functions
+        .httpsCallable('createKakaoCustomToken')
+        .call(<String, dynamic>{'accessToken': accessToken});
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return data['firebaseToken'] as String;
+  }
 }

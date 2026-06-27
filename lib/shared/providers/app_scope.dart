@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../data/models/demo_models.dart';
 import '../../data/repositories/chemistry_repository.dart';
 import '../../data/repositories/mock_chemistry_repository.dart';
+import '../../services/fcm_service.dart';
 import 'admin_demo_provider.dart';
 import 'current_user_controller.dart';
 import 'demo_flow_provider.dart';
@@ -35,7 +38,7 @@ class AppState extends ChangeNotifier {
     final adminProvider = AdminDemoProvider(repo, flowProvider);
     final currentUserController = CurrentUserController();
     final sessionsController = SessionsController();
-    return AppState._(
+    final state = AppState._(
       repository: repo,
       sessionController: sessionController,
       modeController: modeController,
@@ -44,6 +47,22 @@ class AppState extends ChangeNotifier {
       currentUserController: currentUserController,
       sessionsController: sessionsController,
     );
+    state._bootstrapSession();
+    return state;
+  }
+
+  /// 앱 시작 시 Firebase 세션이 남아 있으면 로그인 화면을 건너뛰고 자동 진입.
+  void _bootstrapSession() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return;
+    }
+    sessionController.loginAsDemoUser(displayName: user.displayName ?? '참가자');
+    sessionController.markEntered();
+    modeController.setMode(DemoMode.user);
+    currentUserController.load();
+    sessionsController.start();
+    FcmService.instance.registerForCurrentUser();
   }
 
   final ChemistryRepository repository;

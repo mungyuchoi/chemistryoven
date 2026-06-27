@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -7,8 +6,8 @@ import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/character_seeder.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/my_page_summary_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/user_service.dart';
 import '../../../shared/providers/app_scope.dart';
@@ -66,37 +65,7 @@ class MyPageScreen extends StatelessWidget {
                       const SizedBox(height: 24),
                       _ApplicationStatusCard(onOpenOvening: onOpenOvening),
                       const SizedBox(height: 24),
-                      const _MenuSection(
-                        title: '결제 · 인증',
-                        items: [
-                          _MenuItem(
-                            icon: Icons.credit_card_rounded,
-                            title: '결제 내역',
-                            value: '1건',
-                          ),
-                          _MenuItem(
-                            icon: Icons.verified_user_outlined,
-                            title: '인증 관리',
-                            value: '완료',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      const _MenuSection(
-                        title: '활동',
-                        items: [
-                          _MenuItem(
-                            icon: Icons.article_outlined,
-                            title: '내가 쓴 후기',
-                            value: '3',
-                          ),
-                          _MenuItem(
-                            icon: Icons.favorite_border_rounded,
-                            title: '받은 케미 리포트',
-                            value: '2',
-                          ),
-                        ],
-                      ),
+                      const _MyPageServerSections(),
                       const SizedBox(height: 24),
                       _MenuSection(
                         title: '설정',
@@ -123,17 +92,35 @@ class MyPageScreen extends StatelessWidget {
                             title: '회원탈퇴',
                             value: '',
                             muted: true,
-                            onTap: () => _confirmDeleteAccount(context, appState),
+                            onTap: () =>
+                                _confirmDeleteAccount(context, appState),
                           ),
                         ],
                       ),
                     ],
-                    const SizedBox(height: 24),
-                    if (kDebugMode) ...[
-                      const _DebugSeedButton(),
-                      const SizedBox(height: 12),
+                    if (appState.currentUserController.profile?.isAdmin ??
+                        false) ...[
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const Scaffold(
+                                body: SafeArea(child: AdminDashboardScreen()),
+                              ),
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.burgundy,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          icon: const Icon(Icons.shield_outlined, size: 18),
+                          label: const Text('운영자 모드로 진입'),
+                        ),
+                      ),
                     ],
-                    _DemoModeCard(onOpenOvening: onOpenOvening),
                   ],
                 ),
               ),
@@ -207,9 +194,7 @@ class MyPageScreen extends StatelessWidget {
       appState.sessionController.exitToLogin();
     } catch (error) {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('탈퇴에 실패했어요. 다시 로그인 후 시도해 주세요'),
-        ),
+        const SnackBar(content: Text('탈퇴에 실패했어요. 다시 로그인 후 시도해 주세요')),
       );
       debugPrint('[delete-account] $error');
     }
@@ -341,8 +326,9 @@ class _ProfileHeader extends StatelessWidget {
     final characters = appState.repository.fetchCharacters();
 
     final displayName = profile?.displayName ?? session.displayName;
-    final avatarInitial =
-        displayName.isNotEmpty ? displayName.substring(0, 1) : '?';
+    final avatarInitial = displayName.isNotEmpty
+        ? displayName.substring(0, 1)
+        : '?';
     final genderKr = profile?.genderKr;
     final baseCharacterId = profile?.baseCharacterId;
     final character = baseCharacterId == null
@@ -388,10 +374,11 @@ class _ProfileHeader extends StatelessWidget {
                       )
                     : Text(
                         avatarInitial,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppColors.brandRed,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppColors.brandRed,
+                              fontWeight: FontWeight.w500,
+                            ),
                       ),
               ),
               const SizedBox(width: 12),
@@ -505,9 +492,7 @@ class _ProfileHeader extends StatelessWidget {
     final appState = AppScope.of(context);
     final uid = FirebaseService.instance.uid;
     if (uid == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('로그인 후 이용해 주세요')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('로그인 후 이용해 주세요')));
       return;
     }
 
@@ -516,16 +501,12 @@ class _ProfileHeader extends StatelessWidget {
       return; // 사용자가 취소
     }
 
-    messenger.showSnackBar(
-      const SnackBar(content: Text('사진 업로드 중...')),
-    );
+    messenger.showSnackBar(const SnackBar(content: Text('사진 업로드 중...')));
     try {
       final url = await StorageService.instance.uploadProfilePhoto(uid, file);
       await UserService.instance.updatePhotoURL(uid, url);
       await appState.currentUserController.load();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('프로필 사진이 변경됐어요')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('프로필 사진이 변경됐어요')));
     } catch (error) {
       messenger.showSnackBar(
         const SnackBar(content: Text('업로드에 실패했어요. 다시 시도해 주세요')),
@@ -847,6 +828,99 @@ class _MenuSection extends StatelessWidget {
   }
 }
 
+class _MyPageServerSections extends StatefulWidget {
+  const _MyPageServerSections();
+
+  @override
+  State<_MyPageServerSections> createState() => _MyPageServerSectionsState();
+}
+
+class _MyPageServerSectionsState extends State<_MyPageServerSections> {
+  Future<MyPageSummary>? _summaryFuture;
+  String? _uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadIfNeeded();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reloadIfNeeded();
+  }
+
+  void _reloadIfNeeded() {
+    final uid = FirebaseService.instance.uid;
+    if (_uid == uid && _summaryFuture != null) {
+      return;
+    }
+    _uid = uid;
+    _summaryFuture = uid == null
+        ? Future.value(const MyPageSummary.empty())
+        : MyPageSummaryService.instance.fetch(uid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<MyPageSummary>(
+      future: _summaryFuture,
+      builder: (context, snapshot) {
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        final hasError = snapshot.hasError;
+        final summary = snapshot.data ?? const MyPageSummary.empty();
+
+        String value(String resolved) {
+          if (isLoading) {
+            return '...';
+          }
+          if (hasError) {
+            return '-';
+          }
+          return resolved;
+        }
+
+        return Column(
+          children: [
+            _MenuSection(
+              title: '결제 · 인증',
+              items: [
+                _MenuItem(
+                  icon: Icons.credit_card_rounded,
+                  title: '결제 내역',
+                  value: value(summary.paymentLabel),
+                ),
+                _MenuItem(
+                  icon: Icons.verified_user_outlined,
+                  title: '인증 관리',
+                  value: value(summary.verificationLabel),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _MenuSection(
+              title: '활동',
+              items: [
+                _MenuItem(
+                  icon: Icons.article_outlined,
+                  title: '내가 쓴 후기',
+                  value: value(summary.reviewLabel),
+                ),
+                _MenuItem(
+                  icon: Icons.favorite_border_rounded,
+                  title: '받은 케미 리포트',
+                  value: value(summary.reportLabel),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _MenuItem {
   const _MenuItem({
     required this.icon,
@@ -919,73 +993,6 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-class _DemoModeCard extends StatelessWidget {
-  const _DemoModeCard({required this.onOpenOvening});
-
-  final VoidCallback onOpenOvening;
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = AppScope.of(context);
-    final modeController = appState.modeController;
-    final mode = modeController.mode;
-
-    return AppCard(
-      color: Colors.white.withValues(alpha: 0.72),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '검토 모드',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.mutedText,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '게스트, 사용자, 당일 참가자, 관리자 화면을 즉시 전환합니다.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<DemoMode>(
-              segments: [
-                for (final demoMode in DemoMode.values)
-                  ButtonSegment<DemoMode>(
-                    value: demoMode,
-                    icon: Icon(demoMode.icon),
-                    label: Text(demoMode.label),
-                  ),
-              ],
-              selected: {mode},
-              showSelectedIcon: false,
-              onSelectionChanged: (selection) {
-                final selected = selection.first;
-                if (selected == DemoMode.guest) {
-                  appState.sessionController.resetGuest();
-                  appState.flowProvider.reset();
-                } else {
-                  appState.sessionController.loginAsDemoUser(
-                    displayName: selected == DemoMode.admin ? 'admin' : '참가자 A',
-                  );
-                }
-                modeController.setMode(selected);
-                if (selected == DemoMode.participantToday) {
-                  appState.flowProvider.jumpTo(DemoFlowStep.nicknameCheck);
-                  onOpenOvening();
-                }
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.label);
 
@@ -1024,61 +1031,6 @@ class _SoftBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
-      ),
-    );
-  }
-}
-
-/// 개발용: 캐릭터 20종을 Firestore characters/{id} 에 시드.
-/// 쓰기는 운영자(roles: admin)만 가능 — 본인 user 문서 roles 설정 후 사용.
-class _DebugSeedButton extends StatefulWidget {
-  const _DebugSeedButton();
-
-  @override
-  State<_DebugSeedButton> createState() => _DebugSeedButtonState();
-}
-
-class _DebugSeedButtonState extends State<_DebugSeedButton> {
-  bool _busy = false;
-
-  Future<void> _seed() async {
-    setState(() => _busy = true);
-    String message;
-    try {
-      final count = await CharacterSeeder.instance.seedIfEmpty();
-      message = count > 0
-          ? '캐릭터 $count종 시드 완료'
-          : '이미 시드되어 있어요 (변경 없음)';
-    } catch (error) {
-      message = '시드 실패: 운영자 권한(roles: admin)인지 확인하세요';
-      debugPrint('[seed] $error');
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() => _busy = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: _busy ? null : _seed,
-        icon: _busy
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.cloud_upload_outlined, size: 18),
-        label: const Text('[개발용] 캐릭터 Firestore 시드'),
       ),
     );
   }

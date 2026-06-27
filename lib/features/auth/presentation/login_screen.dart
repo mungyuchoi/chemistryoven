@@ -52,31 +52,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     const CircularProgressIndicator(color: AppColors.burgundy),
                   ],
                   const SizedBox(height: 26),
-                  _buildDivider(context),
-                  const SizedBox(height: 14),
-                  TextButton.icon(
-                    onPressed: _isLoading ? null : _continueAsGuest,
-                    icon: const Icon(
-                      Icons.visibility_outlined,
-                      size: 18,
-                      color: AppColors.mutedText,
-                    ),
-                    label: const Text(
-                      '로그인 없이 둘러보기',
-                      style: TextStyle(
-                        color: AppColors.mutedText,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
                   Text(
                     '로그인 시 서비스 이용약관과 개인정보처리방침에 동의하게 됩니다.',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      height: 1.6,
-                      fontSize: 11,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(height: 1.6, fontSize: 11),
                   ),
                 ],
               ),
@@ -188,25 +169,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return buttons;
   }
 
-  Widget _buildDivider(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(child: Divider(color: AppColors.line)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            '검토용',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 11,
-              color: AppColors.mutedText,
-            ),
-          ),
-        ),
-        const Expanded(child: Divider(color: AppColors.line)),
-      ],
-    );
-  }
-
   /// mileage_thief 로그인 동의 다이얼로그 패턴을 케미오븐 톤으로 적용.
   Future<void> _showAgreementSheet(String provider) async {
     var agreeNoAbuse = false;
@@ -312,14 +274,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = switch (provider) {
         'Google' => await AuthService.instance.signInWithGoogle(),
         'Apple' => await AuthService.instance.signInWithApple(),
-        // 카카오는 Cloud Functions 커스텀 토큰 연동 예정 (Phase 2 후반)
+        'Kakao' => await AuthService.instance.signInWithKakao(),
         _ => null,
       };
 
-      if (provider == 'Kakao') {
-        _showInfo('카카오 로그인은 준비 중이에요. 곧 지원됩니다.');
-        return;
-      }
       if (user == null) {
         // 사용자가 로그인 창을 취소함 — 조용히 종료
         return;
@@ -365,16 +323,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
-  }
-
-  void _continueAsGuest() {
-    AppScope.of(context).sessionController.resetGuest();
-    _finish();
   }
 
   void _finish() {

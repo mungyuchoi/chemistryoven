@@ -1305,18 +1305,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 14),
-        if (_loadingApplicants)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 32),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (_selectedSessionId != null &&
-            _realApplicants.isEmpty)
+        if (_selectedSessionId == null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Center(
               child: Text(
-                '아직 신청자가 없어요',
+                '회차를 먼저 선택해 주세요.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.mutedText,
+                ),
+              ),
+            ),
+          )
+        else if (_loadingApplicants)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (applicants.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Text(
+                '아직 신청자가 없어요.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.mutedText,
                 ),
@@ -1342,9 +1353,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   List<_AdminApplicantData> _sortedApplicants() {
-    final applicants = _realApplicants.isNotEmpty
-        ? [..._realApplicants]
-        : [..._adminApplicants];
+    final applicants = [..._realApplicants];
     if (_applicantSort == 1) {
       applicants.sort((a, b) => b.score.compareTo(a.score));
     }
