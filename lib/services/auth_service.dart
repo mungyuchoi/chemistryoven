@@ -4,10 +4,11 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../core/constants/kakao_config.dart';
 import 'functions_service.dart';
 
 /// 소셜 로그인 → Firebase Auth 연동.
@@ -76,35 +77,75 @@ class AuthService {
     return user;
   }
 
-  /// 카카오 로그인 → Cloud Function 커스텀 토큰 → Firebase 로그인.
-  /// 사용자가 취소하면 null 반환.
-  Future<User?> signInWithKakao() async {
-    late final kakao.OAuthToken token;
+  /// 카카오 OAuth code 획득 (authorize → FlutterWebAuth2 → code/state 검증).
+  /// 사용자가 취소하면 null 을 반환한다.
+  Future<String?> _kakaoAuthCode() async {
+    final state = _generateNonce(24);
+    final authorizeUri = Uri.https('kauth.kakao.com', '/oauth/authorize', {
+      'response_type': 'code',
+      'client_id': kakaoRestApiKey,
+      'redirect_uri': kakaoRedirectUri,
+      'state': state,
+      'scope': 'profile_nickname,profile_image',
+    });
+
+    final String callbackResult;
     try {
-      if (await kakao.isKakaoTalkInstalled()) {
-        try {
-          token = await kakao.UserApi.instance.loginWithKakaoTalk();
-        } on PlatformException catch (error) {
-          // 카카오톡 로그인 취소면 종료, 그 외엔 카카오 계정 로그인으로 폴백
-          if (error.code == 'CANCELED') {
-            return null;
-          }
-          token = await kakao.UserApi.instance.loginWithKakaoAccount();
-        }
-      } else {
-        token = await kakao.UserApi.instance.loginWithKakaoAccount();
-      }
+      callbackResult = await FlutterWebAuth2.authenticate(
+        url: authorizeUri.toString(),
+        callbackUrlScheme: kakaoAuthCallbackScheme,
+      );
     } on PlatformException catch (error) {
-      if (error.code == 'CANCELED') {
+      // 사용자가 로그인 창을 닫으면 취소로 처리
+      final code = error.code.toLowerCase();
+      if (code.contains('cancel')) {
         return null;
       }
       rethrow;
     }
 
+    final callbackUri = Uri.parse(callbackResult);
+    final authError = callbackUri.queryParameters['error'];
+    if (authError != null && authError.isNotEmpty) {
+      throw FirebaseAuthException(
+        code: 'kakao-auth-failed',
+        message: '카카오 인증 실패: $authError',
+      );
+    }
+
+    final code = callbackUri.queryParameters['code'];
+    final returnedState = callbackUri.queryParameters['state'];
+    if (code == null || returnedState != state) {
+      throw FirebaseAuthException(
+        code: 'kakao-callback-invalid',
+        message: '카카오 콜백 검증에 실패했어요.',
+      );
+    }
+    return code;
+  }
+
+  /// 카카오 로그인 (REST OAuth code → Cloud Function 커스텀 토큰 → Firebase).
+  /// 사용자가 취소하면 null 반환.
+  Future<User?> signInWithKakao() async {
+    final code = await _kakaoAuthCode();
+    if (code == null) {
+      return null; // 사용자 취소
+    }
     final firebaseToken = await FunctionsService.instance
-        .createKakaoCustomToken(token.accessToken);
+        .createKakaoCustomToken(code: code, redirectUri: kakaoRedirectUri);
     final result = await _auth.signInWithCustomToken(firebaseToken);
     return result.user;
+  }
+
+  /// 카카오 본인 인증 (계정 생성 X). 현재 로그인 유저에 인증 기록 후 카카오 닉네임 반환.
+  /// 사용자가 취소하면 null 반환.
+  Future<String?> verifyKakao() async {
+    final code = await _kakaoAuthCode();
+    if (code == null) {
+      return null; // 사용자 취소
+    }
+    return FunctionsService.instance
+        .verifyKakaoAccount(code: code, redirectUri: kakaoRedirectUri);
   }
 
   Future<void> signOut() async {
@@ -112,11 +153,6 @@ class AuthService {
       await GoogleSignIn().signOut();
     } catch (_) {
       // 구글 세션이 없을 수 있음 — 무시
-    }
-    try {
-      await kakao.UserApi.instance.logout();
-    } catch (_) {
-      // 카카오 세션이 없을 수 있음 — 무시
     }
     await _auth.signOut();
   }

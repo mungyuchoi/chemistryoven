@@ -31,3 +31,20 @@ export function getGeminiApiKey(): string {
   }
   return key;
 }
+
+export function getKakaoRestApiKey(): string {
+  const env = loadEnv();
+  const key = env.KAKAO_REST_API_KEY || process.env.KAKAO_REST_API_KEY || "";
+  if (!key) {
+    throw new Error(
+      "KAKAO_REST_API_KEY 가 없어요. functions/env/prod.json 에 값을 넣어주세요."
+    );
+  }
+  return key;
+}
+
+/// 카카오 Client Secret (보안 설정에서 활성화한 경우만 필요 · 없으면 빈 문자열)
+export function getKakaoClientSecret(): string {
+  const env = loadEnv();
+  return env.KAKAO_CLIENT_SECRET || process.env.KAKAO_CLIENT_SECRET || "";
+}

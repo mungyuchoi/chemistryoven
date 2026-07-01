@@ -559,7 +559,7 @@ extension OnboardingStepX on OnboardingStep {
       case OnboardingStep.rhythm:
         return '나의 일상 리듬을 알려주세요.';
       case OnboardingStep.conversation:
-        return '내가 편안해지는 대화 방식을 골라주세요.';
+        return '처음 만난 사람과\n가까워지기 좋은 순간은?';
       case OnboardingStep.tastes:
         return '대화가 자연스럽게 시작될 취향을 알려주세요.';
       case OnboardingStep.lifestyle:
@@ -588,7 +588,7 @@ extension OnboardingStepX on OnboardingStep {
       case OnboardingStep.rhythm:
         return '비슷한 시간대에 편하게 참여할 수 있는 회차를 추천해드려요.';
       case OnboardingStep.conversation:
-        return '정답은 없어요. 자연스러운 케미를 찾기 위한 질문이에요.';
+        return '대화 스타일을 분석하기보다, 자연스럽게 가까워지는 순간을 찾아볼게요.';
       case OnboardingStep.tastes:
         return '현장 대화와 케미 분석에 활용돼요.';
       case OnboardingStep.lifestyle:

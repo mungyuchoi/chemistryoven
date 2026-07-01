@@ -40,6 +40,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 앱 아이디(handle) 중복확인 — 읽기 공개(존재 여부 확인용),
+    // 생성은 본인만(create는 문서 없을 때만 성공 → 유니크 보장).
+    match /handles/{handle} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // 회차
     match /sessions/{sessionId} {
       allow read: if isSignedIn();

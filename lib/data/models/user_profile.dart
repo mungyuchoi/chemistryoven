@@ -12,6 +12,9 @@ class UserProfile {
     this.baseCharacterId,
     this.onboardingCompleted = false,
     this.roles = const [],
+    this.provider,
+    this.handle,
+    this.kakaoVerified = false,
   });
 
   final String uid;
@@ -24,6 +27,9 @@ class UserProfile {
   final String? baseCharacterId;
   final bool onboardingCompleted;
   final List<String> roles;
+  final String? provider; // 'google' | 'apple' | 'kakao'
+  final String? handle; // 앱에서 쓸 아이디
+  final bool kakaoVerified;
 
   /// '남성' | '여성' | null
   String? get genderKr => switch (gender) {
@@ -51,6 +57,9 @@ class UserProfile {
               ?.map((role) => role.toString())
               .toList(growable: false) ??
           const [],
+      provider: data['provider'] as String?,
+      handle: data['handle'] as String?,
+      kakaoVerified: (data['kakaoVerified'] as bool?) ?? false,
     );
   }
 }

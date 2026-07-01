@@ -71,10 +71,19 @@ class UserService {
     return _fs.userDoc(uid).get();
   }
 
-  /// 프로필 사진 URL 갱신.
+  /// 대표 프로필 사진 URL 갱신. photos 배열의 첫 번째로도 반영.
   Future<void> updatePhotoURL(String uid, String url) {
     return _fs.userDoc(uid).set({
       'photoURL': url,
+      'photos': FieldValue.arrayUnion([url]),
+      'lastActiveAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// 추가 프로필 사진 URL을 photos 배열에 누적.
+  Future<void> addProfilePhoto(String uid, String url) {
+    return _fs.userDoc(uid).set({
+      'photos': FieldValue.arrayUnion([url]),
       'lastActiveAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -95,17 +104,21 @@ class UserService {
     }, SetOptions(merge: true));
   }
 
-  /// 키·생년월일 등 기본 정보 저장.
+  /// 휴대폰·이름·키·생년월일 등 기본 정보 저장.
   Future<void> updateBasicInfo({
     required String uid,
     String? name,
     String? birth,
     int? height,
+    String? phone,
+    String? handle,
   }) {
     return _fs.userDoc(uid).set({
       if (name != null && name.isNotEmpty) 'realName': name,
       if (birth != null && birth.isNotEmpty) 'birth': birth,
       if (height != null) 'height': height,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (handle != null && handle.isNotEmpty) 'handle': handle,
       'lastActiveAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }

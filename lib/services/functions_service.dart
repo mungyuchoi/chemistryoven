@@ -23,12 +23,27 @@ class FunctionsService {
     return Map<String, dynamic>.from(result.data as Map);
   }
 
-  /// 카카오 access token → Firebase 커스텀 토큰.
-  Future<String> createKakaoCustomToken(String accessToken) async {
+  /// 카카오 OAuth code → Firebase 커스텀 토큰.
+  Future<String> createKakaoCustomToken({
+    required String code,
+    required String redirectUri,
+  }) async {
     final result = await _functions
         .httpsCallable('createKakaoCustomToken')
-        .call(<String, dynamic>{'accessToken': accessToken});
+        .call(<String, dynamic>{'code': code, 'redirectUri': redirectUri});
     final data = Map<String, dynamic>.from(result.data as Map);
     return data['firebaseToken'] as String;
+  }
+
+  /// 카카오 본인 인증(계정 생성 X) → 현재 유저에 기록. 카카오 닉네임 반환.
+  Future<String> verifyKakaoAccount({
+    required String code,
+    required String redirectUri,
+  }) async {
+    final result = await _functions
+        .httpsCallable('verifyKakaoAccount')
+        .call(<String, dynamic>{'code': code, 'redirectUri': redirectUri});
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return (data['nickname'] ?? '') as String;
   }
 }

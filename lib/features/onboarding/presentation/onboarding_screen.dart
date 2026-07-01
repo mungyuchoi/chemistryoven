@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/onboarding_service.dart';
 import '../../../services/storage_service.dart';
@@ -31,7 +32,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   RangeValues _ageRange = const RangeValues(30, 36);
   RangeValues _heightRange = const RangeValues(175, 188);
   final Map<OnboardingStep, Set<String>> _selected = {
-    OnboardingStep.account: {'휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의'},
+    OnboardingStep.account: {'카카오 알림톡 동의', '마케팅 알림 선택'},
     OnboardingStep.basicInfo: {'남성', '서울 강남권'},
     OnboardingStep.rhythm: {'IT/개발', '평일 주간', '토요일 오후', '일요일 오후'},
     OnboardingStep.conversation: {
@@ -65,16 +66,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingStep.profilePreview: {'공개 프로필 확인', 'AI 문장 보정 완료', '운영진 확인 정보 분리'},
   };
 
-  // 기본 정보 입력값 (이름/키/생년월일).
+  // 기본 정보 입력값 (아이디/이름/키/생년월일).
+  final TextEditingController _handleCtrl = TextEditingController();
   final TextEditingController _nameCtrl = TextEditingController(text: '신청자 A');
   final TextEditingController _heightCtrl = TextEditingController(text: '164');
   String _birth = '1995-04-18';
 
+  // STEP 1 아이디 중복확인 상태 (true=사용 가능으로 확인됨).
+  bool _handleAvailable = false;
+
   @override
   void dispose() {
+    _handleCtrl.dispose();
     _nameCtrl.dispose();
     _heightCtrl.dispose();
     super.dispose();
+  }
+
+  void _onHandleAvailabilityChanged(bool available) {
+    _handleAvailable = available;
   }
 
   void _onBirthChanged(String birth) {
@@ -173,6 +183,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     setState(() => _ageRange = values),
                 onHeightRangeChanged: (values) =>
                     setState(() => _heightRange = values),
+                handleController: _handleCtrl,
+                onHandleAvailabilityChanged: _onHandleAvailabilityChanged,
                 nameController: _nameCtrl,
                 heightController: _heightCtrl,
                 initialBirth: _birth,
@@ -476,19 +488,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       characters: appState.repository.fetchCharacters(),
     );
 
-    // 기본 정보(이름/키/생년월일) 저장 (비차단, 로그인 시에만).
+    // 기본 정보(이름/키/생년월일/아이디) 저장 (비차단, 로그인 시에만).
     final uid = FirebaseService.instance.uid;
     if (uid != null) {
+      // 중복확인까지 통과한 유효한 아이디만 저장.
+      final handle = _handleCtrl.text.trim();
+      final hasHandle = _handleAvailable &&
+          RegExp(r'^[A-Za-z0-9_]{4,12}$').hasMatch(handle);
+
       UserService.instance
           .updateBasicInfo(
             uid: uid,
             name: _nameCtrl.text.trim(),
             birth: _birth,
             height: int.tryParse(_heightCtrl.text.trim()),
+            handle: hasHandle ? handle : null,
           )
           .catchError((Object error) {
             debugPrint('[onboarding] 기본 정보 저장 실패: $error');
           });
+
+      // 아이디 소유권 클레임 (handles/{handle} = {uid}).
+      if (hasHandle) {
+        FirebaseService.instance.handles
+            .doc(handle)
+            .set(<String, dynamic>{'uid': uid}).catchError((Object error) {
+          debugPrint('[onboarding] 아이디 클레임 실패: $error');
+        });
+      }
     }
 
     // 비동기 저장 (실패해도 흐름은 진행). 저장 후 사용자 프로필 재로드.
@@ -563,58 +590,345 @@ class _IntroStep extends StatelessWidget {
   }
 }
 
-class _AccountStep extends StatelessWidget {
-  const _AccountStep({required this.selected, required this.onToggle});
+class _AccountStep extends StatefulWidget {
+  const _AccountStep({
+    required this.selected,
+    required this.onToggle,
+    required this.handleController,
+    required this.onHandleAvailabilityChanged,
+  });
 
   final Set<String> selected;
   final ValueChanged<String> onToggle;
+  final TextEditingController handleController;
+  final ValueChanged<bool> onHandleAvailabilityChanged;
+
+  @override
+  State<_AccountStep> createState() => _AccountStepState();
+}
+
+class _AccountStepState extends State<_AccountStep> {
+  static final RegExp _handlePattern = RegExp(r'^[A-Za-z0-9_]{4,12}$');
+
+  bool _verifying = false;
+  bool _checking = false;
+  bool _handleAvailable = false;
+  String? _handleMsg;
+  // 인증 직후 표시할 닉네임 (프로필 재로드 전에도 즉시 반영).
+  String? _verifiedNickname;
+
+  bool _isKakaoVerified(AppState appState) {
+    final profile = appState.currentUserController.profile;
+    if (profile == null) {
+      return false;
+    }
+    return profile.provider == 'kakao' || profile.kakaoVerified == true;
+  }
+
+  String _verifiedDisplayName(AppState appState) {
+    final nickname = _verifiedNickname;
+    if (nickname != null && nickname.isNotEmpty) {
+      return nickname;
+    }
+    return appState.currentUserController.profile?.displayName ?? '';
+  }
+
+  Future<void> _verifyKakao() async {
+    if (_verifying) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final appState = AppScope.of(context);
+    final uid = FirebaseService.instance.uid;
+    if (uid == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('로그인 후 카카오 인증을 진행할 수 있어요.')),
+      );
+      return;
+    }
+
+    setState(() => _verifying = true);
+    try {
+      final nickname = await AuthService.instance.verifyKakao();
+      if (nickname == null) {
+        return; // 사용자 취소
+      }
+      await appState.currentUserController.load();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _verifiedNickname = nickname);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('카카오 인증이 완료됐어요.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('카카오 인증에 실패했어요: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _verifying = false);
+      }
+    }
+  }
+
+  Future<void> _checkHandle() async {
+    if (_checking) {
+      return;
+    }
+    final handle = widget.handleController.text.trim();
+    if (!_handlePattern.hasMatch(handle)) {
+      setState(() {
+        _handleAvailable = false;
+        _handleMsg = '영문·숫자 4~12자';
+      });
+      widget.onHandleAvailabilityChanged(false);
+      return;
+    }
+
+    setState(() {
+      _checking = true;
+      _handleMsg = null;
+    });
+    try {
+      final doc = await FirebaseService.instance.handles.doc(handle).get();
+      if (!mounted) {
+        return;
+      }
+      final taken = doc.exists;
+      setState(() {
+        _handleAvailable = !taken;
+        _handleMsg = taken ? '이미 사용 중인 아이디예요' : '사용 가능한 아이디예요';
+      });
+      widget.onHandleAvailabilityChanged(!taken);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _handleAvailable = false;
+        _handleMsg = '중복 확인에 실패했어요. 다시 시도해주세요.';
+      });
+      widget.onHandleAvailabilityChanged(false);
+    } finally {
+      if (mounted) {
+        setState(() => _checking = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    const accountOptions = ['휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의', '마케팅 알림 선택'];
+    const accountOptions = ['카카오 알림톡 동의', '마케팅 알림 선택'];
+    final appState = AppScope.of(context);
+    final verified = _isKakaoVerified(appState) || _verifiedNickname != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _FieldLabel('휴대폰 인증'),
-              const SizedBox(height: 8),
-              TextFormField(
-                initialValue: '010-****-0000',
-                readOnly: true,
-                decoration: const InputDecoration(
-                  suffixIcon: Icon(
-                    Icons.check_circle,
-                    color: AppColors.success,
+        Row(
+          children: [
+            const _FieldLabel('카카오톡 인증'),
+            const Spacer(),
+            Text(
+              '간편 본인 인증',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (verified)
+          AppCard(
+            color: Colors.white,
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE500),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble,
+                    color: Color(0xFF191600),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '카카오 인증 완료',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.cocoa,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _verifiedDisplayName(appState),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.mutedText,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    '완료',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            width: double.infinity,
+            child: Material(
+              color: const Color(0xFFFEE500),
+              borderRadius: BorderRadius.circular(10),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _verifying ? null : _verifyKakao,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_verifying)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(
+                              Color(0xFF191600),
+                            ),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.chat_bubble,
+                          color: Color(0xFF191600),
+                          size: 20,
+                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _verifying ? '인증 중...' : '카카오톡으로 인증하기',
+                        style: const TextStyle(
+                          color: Color(0xFF191600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              const _FieldLabel('로그인 ID'),
-              const SizedBox(height: 8),
-              TextFormField(
-                initialValue: 'applicant.a@example.com',
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(hintText: '이메일을 입력해주세요'),
-              ),
-            ],
+            ),
           ),
+        const SizedBox(height: 22),
+        Row(
+          children: [
+            const _FieldLabel('앱에서 쓸 아이디'),
+            const Spacer(),
+            Text(
+              '영문·숫자 4~12자',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: widget.handleController,
+                textInputAction: TextInputAction.done,
+                onChanged: (_) {
+                  if (_handleAvailable || _handleMsg != null) {
+                    setState(() {
+                      _handleAvailable = false;
+                      _handleMsg = null;
+                    });
+                    widget.onHandleAvailabilityChanged(false);
+                  }
+                },
+                style: const TextStyle(
+                  color: AppColors.cocoa,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: const InputDecoration(hintText: '예: jiyoon_95'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: _checking ? null : _checkHandle,
+                child: _checking
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('중복확인'),
+              ),
+            ),
+          ],
+        ),
+        if (_handleMsg != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _handleMsg!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: _handleAvailable ? AppColors.success : AppColors.brandRed,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+        const SizedBox(height: 18),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             for (final option in accountOptions)
               _OnboardingPill(
-                selected: selected.contains(option),
+                selected: widget.selected.contains(option),
                 label: option,
-                onTap: () => onToggle(option),
+                onTap: () => widget.onToggle(option),
               ),
           ],
         ),
@@ -624,7 +938,7 @@ class _AccountStep extends StatelessWidget {
           borderColor: AppColors.rose,
           padding: const EdgeInsets.all(14),
           child: Text(
-            '비회원은 홈과 일정을 둘러볼 수 있고, 신청은 휴대폰 인증과 케미 레시피 작성 후 가능해요.',
+            '카카오톡 인증은 본인 확인용이에요. 매칭 시 연락처는 최종 매칭된 분에게만 공개돼요.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.cocoa,
               height: 1.55,
@@ -646,6 +960,8 @@ class _QuestionStep extends StatelessWidget {
     required this.heightRange,
     required this.onAgeRangeChanged,
     required this.onHeightRangeChanged,
+    required this.handleController,
+    required this.onHandleAvailabilityChanged,
     required this.nameController,
     required this.heightController,
     required this.initialBirth,
@@ -660,6 +976,8 @@ class _QuestionStep extends StatelessWidget {
   final RangeValues heightRange;
   final ValueChanged<RangeValues> onAgeRangeChanged;
   final ValueChanged<RangeValues> onHeightRangeChanged;
+  final TextEditingController handleController;
+  final ValueChanged<bool> onHandleAvailabilityChanged;
   final TextEditingController nameController;
   final TextEditingController heightController;
   final String initialBirth;
@@ -671,6 +989,8 @@ class _QuestionStep extends StatelessWidget {
       return _AccountStep(
         selected: selected,
         onToggle: (value) => onToggle(step, value),
+        handleController: handleController,
+        onHandleAvailabilityChanged: onHandleAvailabilityChanged,
       );
     }
     if (step == OnboardingStep.basicInfo) {
@@ -1081,6 +1401,10 @@ class _BasicInfoStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const _SectionHeader(label: '프로필 사진 *', note: '신청에 필요해요'),
+        const SizedBox(height: 10),
+        const _ProfilePhotoRow(),
+        const SizedBox(height: 22),
         const _FieldLabel('이름'),
         const SizedBox(height: 8),
         TextFormField(
@@ -1239,7 +1563,10 @@ class _GenderCard extends StatelessWidget {
 }
 
 class _BirthDateSpinner extends StatefulWidget {
-  const _BirthDateSpinner({required this.initialBirth, required this.onChanged});
+  const _BirthDateSpinner({
+    required this.initialBirth,
+    required this.onChanged,
+  });
 
   final String initialBirth;
   final ValueChanged<String> onChanged;
@@ -1270,12 +1597,8 @@ class _BirthDateSpinnerState extends State<_BirthDateSpinner> {
   void initState() {
     super.initState();
     final parts = widget.initialBirth.split('-');
-    _year = (parts.isNotEmpty && _years.contains(parts[0]))
-        ? parts[0]
-        : '1995';
-    _month = (parts.length > 1 && _months.contains(parts[1]))
-        ? parts[1]
-        : '04';
+    _year = (parts.isNotEmpty && _years.contains(parts[0])) ? parts[0] : '1995';
+    _month = (parts.length > 1 && _months.contains(parts[1])) ? parts[1] : '04';
     _day = (parts.length > 2 && _days.contains(parts[2])) ? parts[2] : '18';
   }
 
@@ -1987,7 +2310,6 @@ class _TasteStep extends StatelessWidget {
       ('맛집·카페 탐방', Icons.article_outlined),
       ('새로운 경험', Icons.science_outlined),
     ];
-    const desserts = ['초콜릿', '과일', '크림', '담백한 빵', '커피 페어링', '구움과자', '케이크'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2079,21 +2401,6 @@ class _TasteStep extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 22),
-        const _FieldLabel('디저트 취향'),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 10,
-          children: [
-            for (final dessert in desserts)
-              _OnboardingPill(
-                label: dessert,
-                selected: selected.contains(dessert),
-                onTap: () => onToggle(dessert),
-              ),
-          ],
-        ),
       ],
     );
   }
@@ -2149,7 +2456,7 @@ class _LifestyleCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selected ? Colors.white : AppColors.cocoa,
@@ -3087,9 +3394,7 @@ class _VerificationStepState extends State<_VerificationStep> {
     final messenger = ScaffoldMessenger.of(context);
     final uid = FirebaseService.instance.uid;
     if (uid == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('로그인 후 제출할 수 있어요')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('로그인 후 제출할 수 있어요')));
       return;
     }
     final file = await StorageService.instance.pickImage();
@@ -3122,9 +3427,7 @@ class _VerificationStepState extends State<_VerificationStep> {
     final messenger = ScaffoldMessenger.of(context);
     final uid = FirebaseService.instance.uid;
     if (uid == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('로그인 후 업로드할 수 있어요')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('로그인 후 업로드할 수 있어요')));
       return;
     }
     final file = await StorageService.instance.pickImage();
@@ -3296,6 +3599,90 @@ class _PhoneVerificationCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 기본 정보(STEP 2) 프로필 사진 업로드 행: 대표 + 추가 2칸.
+/// 대표(slot 0)는 users/{uid}.photoURL, 나머지는 photos 배열에 저장.
+class _ProfilePhotoRow extends StatefulWidget {
+  const _ProfilePhotoRow();
+
+  @override
+  State<_ProfilePhotoRow> createState() => _ProfilePhotoRowState();
+}
+
+class _ProfilePhotoRowState extends State<_ProfilePhotoRow> {
+  final Map<int, String> _photoUrls = {};
+  final Set<int> _uploading = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // 이미 업로드된 대표 사진이 있으면 첫 칸에 반영.
+    final photoURL = FirebaseService.instance.currentUser?.photoURL;
+    if (photoURL != null && photoURL.isNotEmpty) {
+      _photoUrls[0] = photoURL;
+    }
+  }
+
+  Future<void> _upload(int slot) async {
+    if (_uploading.contains(slot)) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = FirebaseService.instance.uid;
+    if (uid == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('로그인 후 업로드할 수 있어요')));
+      return;
+    }
+    final file = await StorageService.instance.pickImage();
+    if (file == null) return;
+
+    if (!mounted) return;
+    setState(() => _uploading.add(slot));
+    try {
+      final url = await StorageService.instance.uploadProfilePhoto(uid, file);
+      if (slot == 0) {
+        await UserService.instance.updatePhotoURL(uid, url);
+      } else {
+        await UserService.instance.addProfilePhoto(uid, url);
+      }
+      if (!mounted) return;
+      AppScope.of(context).currentUserController.load();
+      setState(() {
+        _uploading.remove(slot);
+        _photoUrls[slot] = url;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _uploading.remove(slot));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('업로드에 실패했어요. 잠시 후 다시 시도해주세요.')),
+      );
+    }
+  }
+
+  Widget _slot(int slot, {IconData? icon, String? label}) {
+    return _PhotoUploadSlot(
+      icon: icon ?? Icons.add,
+      label: label,
+      imageUrl: _photoUrls[slot],
+      uploading: _uploading.contains(slot),
+      onTap: () => _upload(slot),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _slot(0, icon: Icons.camera_alt_outlined, label: '대표 *'),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: _slot(1, label: '추가')),
+        const SizedBox(width: 10),
+        Expanded(child: _slot(2, label: '추가')),
+      ],
     );
   }
 }

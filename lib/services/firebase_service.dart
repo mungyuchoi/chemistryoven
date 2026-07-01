@@ -35,6 +35,8 @@ class FirebaseService {
       db.collection('reviews');
   CollectionReference<Map<String, dynamic>> get prompts =>
       db.collection('prompts');
+  CollectionReference<Map<String, dynamic>> get handles =>
+      db.collection('handles');
 
   // ── 문서 / 서브컬렉션 ─────────────────────────────────────────
   DocumentReference<Map<String, dynamic>> userDoc(String uid) => users.doc(uid);

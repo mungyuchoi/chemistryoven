@@ -45,10 +45,11 @@ dependencies:
   # (cloud_functions: 어드민 AI 점수계산 호출용 — 위에 이미 포함)
 
   # 소셜 로그인 (Android: 구글·카카오 / iOS: 구글·애플·카카오)
+  # 카카오는 REST OAuth(코드) + Cloud Functions 커스텀 토큰 방식 (mileage_thief 동일)
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.3
   crypto: ^3.0.5
-  kakao_flutter_sdk_user: ^1.9.5
+  flutter_web_auth_2: ^4.1.0
 
   # 이미지 선택 · 압축 (프로필/인증 사진 업로드)
   image_picker: ^1.1.2
