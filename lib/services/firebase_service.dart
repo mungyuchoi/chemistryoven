@@ -41,6 +41,11 @@ class FirebaseService {
   // ── 문서 / 서브컬렉션 ─────────────────────────────────────────
   DocumentReference<Map<String, dynamic>> userDoc(String uid) => users.doc(uid);
 
+  /// 온보딩 설문 결과 서브컬렉션 문서: users/{uid}/onboarding/current
+  /// (설문 원본/선호값/기본 캐릭터를 users 문서에서 분리해 보관).
+  DocumentReference<Map<String, dynamic>> onboardingDoc(String uid) =>
+      userDoc(uid).collection('onboarding').doc('current');
+
   DocumentReference<Map<String, dynamic>> sessionDoc(String sessionId) =>
       sessions.doc(sessionId);
 

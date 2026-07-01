@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../data/models/user_profile.dart';
 import '../../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/firebase_service.dart';
@@ -410,12 +411,12 @@ class _ProfileHeader extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
-                      const Wrap(
+                      Wrap(
                         spacing: 6,
                         runSpacing: 6,
                         children: [
-                          _SoftBadge(label: '실명 인증 완료'),
-                          _SoftBadge(label: '직장 인증 완료'),
+                          _realNameBadge(profile),
+                          _jobBadge(profile),
                         ],
                       ),
                     ],
@@ -485,6 +486,25 @@ class _ProfileHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 실명(카카오) 인증 배지. 승인된 경우에만 초록 '완료', 아니면 muted '전'.
+  Widget _realNameBadge(UserProfile? profile) {
+    if (profile?.isRealNameVerified ?? false) {
+      return const _SoftBadge(label: '실명 인증 완료');
+    }
+    return const _SoftBadge(label: '실명 인증 전', variant: _BadgeVariant.muted);
+  }
+
+  /// 직장 인증 배지. approved 만 초록 '완료', pending 은 노랑 '대기', 그 외 muted '전'.
+  Widget _jobBadge(UserProfile? profile) {
+    if (profile?.isJobVerified ?? false) {
+      return const _SoftBadge(label: '직장 인증 완료');
+    }
+    if (profile?.isJobVerificationPending ?? false) {
+      return const _SoftBadge(label: '직장 인증 대기', variant: _BadgeVariant.pending);
+    }
+    return const _SoftBadge(label: '직장 인증 전', variant: _BadgeVariant.muted);
   }
 
   Future<void> _changeProfilePhoto(BuildContext context) async {
@@ -1011,23 +1031,36 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+enum _BadgeVariant { success, pending, muted }
+
 class _SoftBadge extends StatelessWidget {
-  const _SoftBadge({required this.label});
+  const _SoftBadge({
+    required this.label,
+    this.variant = _BadgeVariant.success,
+  });
 
   final String label;
+  final _BadgeVariant variant;
+
+  Color get _color => switch (variant) {
+    _BadgeVariant.success => AppColors.success,
+    _BadgeVariant.pending => AppColors.gold,
+    _BadgeVariant.muted => AppColors.mutedText,
+  };
 
   @override
   Widget build(BuildContext context) {
+    final color = _color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.success,
+        style: TextStyle(
+          color: color,
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),

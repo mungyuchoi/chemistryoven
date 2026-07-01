@@ -36,21 +36,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingStep.basicInfo: {'남성', '서울 강남권'},
     OnboardingStep.rhythm: {'IT/개발', '평일 주간', '토요일 오후', '일요일 오후'},
     OnboardingStep.conversation: {
-      'INFJ',
-      '차분한 대화',
-      '취향 공유',
-      '상대가 편해지면 말이 많아지는 편',
-      '신뢰를 중요하게 보는 편',
-    },
-    OnboardingStep.tastes: {
-      '전시',
-      '카페',
+      '같이 무언가를 만들 때',
+      '맛있는 걸 나눠 먹을 때',
+      '서로 질문을 주고받을 때',
+      '차분하고 따뜻한',
+      '맛집·카페 탐방',
+      '영화',
+      '맛집',
       '요리',
-      '디저트',
-      '커피',
-      '조용한 휴식',
-      '크림',
-      '구움과자',
     },
     OnboardingStep.lifestyle: {'크림', '구움과자', '커피 페어링', '가볍게 한 잔', '비흡연'},
     OnboardingStep.keywords: {'다정한', '성실한', '배려 깊은', '천천히 깊어지는 사람'},
@@ -264,69 +257,57 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
       if (step == OnboardingStep.conversation) {
-        const mbtis = {
-          'INTJ',
-          'INTP',
-          'ENTJ',
-          'ENTP',
-          'INFJ',
-          'INFP',
-          'ENFJ',
-          'ENFP',
-          'ISTJ',
-          'ISFJ',
-          'ESTJ',
-          'ESFJ',
-          'ISTP',
-          'ISFP',
-          'ESTP',
-          'ESFP',
-          '잘 모르겠어요',
+        // ① 가까워지기 좋은 순간 — 최대 3개.
+        const closeMoments = {
+          '같이 무언가를 만들 때',
+          '맛있는 걸 나눠 먹을 때',
+          '취향 이야기를 할 때',
+          '가벼운 게임을 할 때',
+          '산책하거나 움직일 때',
+          '웃긴 이야기를 나눌 때',
+          '조용히 집중할 때',
+          '서로 질문을 주고받을 때',
         };
-        const firstMeeting = {
-          '먼저 말을 거는 편',
-          '상대가 편해지면 말이 많아지는 편',
-          '분위기를 살피는 편',
-          '자연스럽게 맞춰가는 편',
+        // ② 함께하면 편한 분위기 — 하나만 선택.
+        const vibes = {
+          '차분하고 따뜻한',
+          '웃음이 많은',
+          '가볍고 편한',
+          '진지한 이야기도',
+          '함께 집중하는',
+          '새로운 경험을',
         };
-        const relationshipValues = {
-          '신뢰를 중요하게 보는 편',
-          '표현이 솔직한 편',
-          '생활 리듬이 맞는 편',
-          '취향을 함께 나누는 편',
+        // ③ 주말에 가장 끌리는 건 — 하나만 선택.
+        const weekend = {
+          '맛집·카페 탐방',
+          '전시·영화·공연',
+          '산책·운동',
+          '집에서 휴식',
+          '여행·드라이브',
+          '원데이 클래스',
         };
 
-        if (mbtis.contains(value)) {
+        if (closeMoments.contains(value)) {
+          if (values.contains(value)) {
+            values.remove(value);
+          } else if (values.intersection(closeMoments).length < 3) {
+            values.add(value);
+          }
+          return;
+        }
+        if (vibes.contains(value)) {
           values
-            ..removeAll(mbtis)
+            ..removeAll(vibes)
             ..add(value);
           return;
         }
-        if (firstMeeting.contains(value)) {
+        if (weekend.contains(value)) {
           values
-            ..removeAll(firstMeeting)
+            ..removeAll(weekend)
             ..add(value);
           return;
         }
-        if (relationshipValues.contains(value) &&
-            !values.contains(value) &&
-            values.intersection(relationshipValues).length >= 2) {
-          values.remove(values.intersection(relationshipValues).first);
-        }
-      }
-      if (step == OnboardingStep.tastes) {
-        const weekendActivities = {
-          '밖에서 에너지 충전',
-          '조용한 휴식',
-          '맛집·카페 탐방',
-          '새로운 경험',
-        };
-        if (weekendActivities.contains(value)) {
-          values
-            ..removeAll(weekendActivities)
-            ..add(value);
-          return;
-        }
+        // ④ 취향 키워드는 자유 다중 선택 → 아래 기본 add/remove로 처리.
       }
       if (step == OnboardingStep.keywords) {
         const keywords = {
@@ -474,12 +455,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           orElse: () => '',
         );
 
-    // 취향/키워드/라이프스타일 선택을 캐릭터 추천 키워드로 사용
+    // 취향(취향 키워드 포함 conversation)/키워드/라이프스타일 선택을
+    // 캐릭터 추천 키워드로 사용
     final keywords = <String>{
-      ...?_selected[OnboardingStep.tastes],
+      ...?_selected[OnboardingStep.conversation],
       ...?_selected[OnboardingStep.keywords],
       ...?_selected[OnboardingStep.lifestyle],
-      ...?_selected[OnboardingStep.conversation],
     };
 
     final baseCharacterId = CharacterRecommender.recommend(
@@ -1011,12 +992,6 @@ class _QuestionStep extends StatelessWidget {
     }
     if (step == OnboardingStep.conversation) {
       return _ConversationStep(
-        selected: selected,
-        onToggle: (value) => onToggle(step, value),
-      );
-    }
-    if (step == OnboardingStep.tastes) {
-      return _TasteStep(
         selected: selected,
         onToggle: (value) => onToggle(step, value),
       );
@@ -1998,6 +1973,9 @@ class _OnboardingPill extends StatelessWidget {
   }
 }
 
+/// STEP 4 — 취향 기반 케미.
+/// ① 가까워지기 좋은 순간(chips, 최대 3) ② 함께하면 편한 분위기(카드)
+/// ③ 주말에 가장 끌리는 건(카드) ④ 취향 키워드(chips)
 class _ConversationStep extends StatelessWidget {
   const _ConversationStep({required this.selected, required this.onToggle});
 
@@ -2006,309 +1984,47 @@ class _ConversationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const mbtis = [
-      'INTJ',
-      'INTP',
-      'ENTJ',
-      'ENTP',
-      'INFJ',
-      'INFP',
-      'ENFJ',
-      'ENFP',
-      'ISTJ',
-      'ISFJ',
-      'ESTJ',
-      'ESFJ',
-      'ISTP',
-      'ISFP',
-      'ESTP',
-      'ESFP',
+    const closeMoments = [
+      '같이 무언가를 만들 때',
+      '맛있는 걸 나눠 먹을 때',
+      '취향 이야기를 할 때',
+      '가벼운 게임을 할 때',
+      '산책하거나 움직일 때',
+      '웃긴 이야기를 나눌 때',
+      '조용히 집중할 때',
+      '서로 질문을 주고받을 때',
     ];
-    const styles = [
-      '차분한 대화',
-      '유쾌한 농담',
-      '깊은 이야기',
-      '취향 공유',
-      '질문을 잘하는 편',
-      '리액션이 좋은 편',
-      '천천히 친해지는 편',
+    const vibes = <(String, IconData)>[
+      ('차분하고 따뜻한', Icons.favorite_border),
+      ('웃음이 많은', Icons.auto_awesome),
+      ('가볍고 편한', Icons.auto_awesome),
+      ('진지한 이야기도', Icons.favorite_border),
+      ('함께 집중하는', Icons.science_outlined),
+      ('새로운 경험을', Icons.science_outlined),
     ];
-    const firstMeeting = [
-      '먼저 말을 거는 편',
-      '상대가 편해지면 말이 많아지는 편',
-      '분위기를 살피는 편',
-      '자연스럽게 맞춰가는 편',
+    const weekend = <(String, IconData)>[
+      ('맛집·카페 탐방', Icons.local_fire_department_outlined),
+      ('전시·영화·공연', Icons.auto_awesome),
+      ('산책·운동', Icons.favorite_border),
+      ('집에서 휴식', Icons.home_outlined),
+      ('여행·드라이브', Icons.location_on_outlined),
+      ('원데이 클래스', Icons.science_outlined),
     ];
-    const relationshipValues = [
-      '신뢰를 중요하게 보는 편',
-      '표현이 솔직한 편',
-      '생활 리듬이 맞는 편',
-      '취향을 함께 나누는 편',
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const _FieldLabel('MBTI'),
-            const Spacer(),
-            TextButton(
-              onPressed: () => onToggle('잘 모르겠어요'),
-              child: Text(
-                '모를 땐 건너뛰기',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.mutedText,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 4,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          childAspectRatio: 2.25,
-          children: [
-            for (final mbti in mbtis)
-              _MbtiTile(
-                label: mbti,
-                selected: selected.contains(mbti),
-                onTap: () => onToggle(mbti),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: TextButton(
-            onPressed: () => onToggle('잘 모르겠어요'),
-            child: Text(
-              '잘 모르겠어요',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: selected.contains('잘 모르겠어요')
-                    ? AppColors.brandRed
-                    : AppColors.mutedText,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            const _FieldLabel('대화 스타일'),
-            const Spacer(),
-            Text(
-              '여러 개 선택',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.mutedText,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 10,
-          children: [
-            for (final style in styles)
-              _OnboardingPill(
-                label: style,
-                selected: selected.contains(style),
-                onTap: () => onToggle(style),
-              ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        const _FieldLabel('처음 만났을 때 나는?'),
-        const SizedBox(height: 10),
-        for (final item in firstMeeting) ...[
-          _ConversationCard(
-            label: item,
-            selected: selected.contains(item),
-            onTap: () => onToggle(item),
-          ),
-          const SizedBox(height: 10),
-        ],
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const _FieldLabel('관계에서 중요하게 보는 것'),
-            const Spacer(),
-            Text(
-              '최대 2개',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.mutedText,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 10,
-          children: [
-            for (final value in relationshipValues)
-              _OnboardingPill(
-                label: value,
-                selected: selected.contains(value),
-                onTap: () => onToggle(value),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _MbtiTile extends StatelessWidget {
-  const _MbtiTile({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.burgundy : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: selected ? AppColors.burgundy : AppColors.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.cocoa,
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.burgundy : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: selected ? AppColors.gold : AppColors.line,
-          width: selected ? 1.4 : 1,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? Colors.white.withValues(alpha: 0.14)
-                      : AppColors.blush,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.auto_awesome,
-                  color: selected ? AppColors.butter : AppColors.brandRed,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? Colors.white : AppColors.cocoa,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ),
-              if (selected)
-                const Icon(Icons.check, color: AppColors.butter, size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TasteStep extends StatelessWidget {
-  const _TasteStep({required this.selected, required this.onToggle});
-
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    const hobbies = [
+    const tasteKeywords = [
       '영화',
+      '음악',
       '전시',
       '여행',
       '맛집',
+      '카페',
       '운동',
       '독서',
-      '음악',
-      '카페',
-      '산책',
+      '사진',
       '요리',
       '게임',
-      '사진',
       '반려동물',
-    ];
-    const foods = [
-      '한식',
-      '양식',
-      '일식',
-      '중식',
-      '디저트',
-      '고기',
-      '해산물',
-      '매운 음식',
-      '커피',
-      '와인/논알콜',
-    ];
-    const activities = [
-      ('밖에서 에너지 충전', Icons.auto_awesome),
-      ('조용한 휴식', Icons.favorite_border),
-      ('맛집·카페 탐방', Icons.article_outlined),
-      ('새로운 경험', Icons.science_outlined),
+      '패션',
+      '자기계발',
     ];
 
     return Column(
@@ -2316,35 +2032,10 @@ class _TasteStep extends StatelessWidget {
       children: [
         Row(
           children: [
-            const _FieldLabel('인생 영화'),
+            const _FieldLabel('가까워지기 좋은 순간'),
             const Spacer(),
             Text(
-              '한 줄',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.mutedText,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          initialValue: '어바웃 타임',
-          textInputAction: TextInputAction.next,
-          style: const TextStyle(
-            color: AppColors.cocoa,
-            fontSize: 17,
-            fontWeight: FontWeight.w400,
-          ),
-          decoration: const InputDecoration(hintText: '대화가 시작될 영화를 적어주세요'),
-        ),
-        const SizedBox(height: 22),
-        Row(
-          children: [
-            const _FieldLabel('취미'),
-            const Spacer(),
-            Text(
-              '여러 개 선택',
+              '최대 3개',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.mutedText,
                 fontWeight: FontWeight.w400,
@@ -2357,32 +2048,16 @@ class _TasteStep extends StatelessWidget {
           spacing: 8,
           runSpacing: 10,
           children: [
-            for (final hobby in hobbies)
+            for (final moment in closeMoments)
               _OnboardingPill(
-                label: hobby,
-                selected: selected.contains(hobby),
-                onTap: () => onToggle(hobby),
-              ),
-            _AddPill(onTap: () {}),
-          ],
-        ),
-        const SizedBox(height: 22),
-        const _FieldLabel('좋아하는 음식'),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 10,
-          children: [
-            for (final food in foods)
-              _OnboardingPill(
-                label: food,
-                selected: selected.contains(food),
-                onTap: () => onToggle(food),
+                label: moment,
+                selected: selected.contains(moment),
+                onTap: () => onToggle(moment),
               ),
           ],
         ),
         const SizedBox(height: 22),
-        const _FieldLabel('주말에 좋아하는 활동'),
+        const _FieldLabel('함께하면 편한 분위기'),
         const SizedBox(height: 10),
         GridView.count(
           shrinkWrap: true,
@@ -2392,13 +2067,61 @@ class _TasteStep extends StatelessWidget {
           mainAxisSpacing: 10,
           childAspectRatio: 2.05,
           children: [
-            for (final item in activities)
+            for (final item in vibes)
               _LifestyleCard(
                 label: item.$1,
                 icon: item.$2,
                 selected: selected.contains(item.$1),
                 onTap: () => onToggle(item.$1),
               ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        const _FieldLabel('주말에 가장 끌리는 건'),
+        const SizedBox(height: 10),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 2.05,
+          children: [
+            for (final item in weekend)
+              _LifestyleCard(
+                label: item.$1,
+                icon: item.$2,
+                selected: selected.contains(item.$1),
+                onTap: () => onToggle(item.$1),
+              ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        Row(
+          children: [
+            const _FieldLabel('취향 키워드'),
+            const Spacer(),
+            Text(
+              '대화가 자연스럽게 시작될 취향',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 10,
+          children: [
+            for (final keyword in tasteKeywords)
+              _OnboardingPill(
+                label: keyword,
+                selected: selected.contains(keyword),
+                onTap: () => onToggle(keyword),
+              ),
+            _AddPill(onTap: () {}),
           ],
         ),
       ],
@@ -3369,26 +3092,89 @@ class _VerificationStep extends StatefulWidget {
   State<_VerificationStep> createState() => _VerificationStepState();
 }
 
+enum _JobType { company, self, freelance, employed, jobseeker }
+
 class _VerificationStepState extends State<_VerificationStep> {
-  static const List<({IconData icon, String title})> _documents = [
-    (icon: Icons.credit_card_outlined, title: '명함'),
-    (icon: Icons.shield_outlined, title: '사원증'),
-    (icon: Icons.alternate_email, title: '회사 이메일'),
-    (icon: Icons.article_outlined, title: '사업자등록증'),
+  static const List<({_JobType type, IconData icon, String label})> _jobTypes =
+      [
+    (type: _JobType.company, icon: Icons.credit_card_outlined, label: '회사원'),
+    (
+      type: _JobType.self,
+      icon: Icons.local_fire_department_outlined,
+      label: '자영업'
+    ),
+    (type: _JobType.freelance, icon: Icons.science_outlined, label: '프리랜서'),
+    (type: _JobType.employed, icon: Icons.check_circle_outline, label: '재직중'),
+    (type: _JobType.jobseeker, icon: Icons.schedule_outlined, label: '취업준비중'),
   ];
 
-  // 제출 완료된 인증 자료 (title 기준).
+  _JobType _jobType = _JobType.company;
+  bool _checkAgreed = false;
+
+  // 제출 완료된 인증 자료 (label 기준).
   final Set<String> _submittedDocs = {};
-  // 업로드 진행 중인 인증 자료 (title 기준).
+  // 업로드 진행 중인 인증 자료 (label 기준).
   final Set<String> _uploadingDocs = {};
 
-  // 슬롯별 업로드된 사진 URL.
-  final Map<int, String> _photoUrls = {};
-  // 업로드 진행 중인 슬롯.
-  final Set<int> _uploadingPhotos = {};
+  // 카카오 인증 진행 중 여부.
+  bool _verifyingKakao = false;
 
-  Future<void> _submitDocument(String title) async {
-    if (_uploadingDocs.contains(title) || _submittedDocs.contains(title)) {
+  // 유형별 입력 컨트롤러.
+  final TextEditingController _companyCtrl = TextEditingController();
+  final TextEditingController _positionCtrl = TextEditingController();
+  final TextEditingController _storeCtrl = TextEditingController();
+  final TextEditingController _activityCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _companyCtrl.dispose();
+    _positionCtrl.dispose();
+    _storeCtrl.dispose();
+    _activityCtrl.dispose();
+    super.dispose();
+  }
+
+  bool _isKakaoVerified(AppState appState) {
+    final profile = appState.currentUserController.profile;
+    if (profile == null) return false;
+    return profile.provider == 'kakao' || profile.kakaoVerified == true;
+  }
+
+  Future<void> _verifyKakao() async {
+    if (_verifyingKakao) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final appState = AppScope.of(context);
+    final uid = FirebaseService.instance.uid;
+    if (uid == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('로그인 후 카카오 인증을 진행할 수 있어요.')),
+      );
+      return;
+    }
+
+    setState(() => _verifyingKakao = true);
+    try {
+      final nickname = await AuthService.instance.verifyKakao();
+      if (nickname == null) return; // 사용자 취소
+      await appState.currentUserController.load();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('카카오 인증이 완료됐어요.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('카카오 인증에 실패했어요: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _verifyingKakao = false);
+      }
+    }
+  }
+
+  Future<void> _submitDocument(String label) async {
+    if (_uploadingDocs.contains(label) || _submittedDocs.contains(label)) {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
@@ -3401,7 +3187,7 @@ class _VerificationStepState extends State<_VerificationStep> {
     if (file == null) return;
 
     if (!mounted) return;
-    setState(() => _uploadingDocs.add(title));
+    setState(() => _uploadingDocs.add(label));
     try {
       final url = await StorageService.instance.uploadJobVerification(
         uid,
@@ -3410,97 +3196,482 @@ class _VerificationStepState extends State<_VerificationStep> {
       await UserService.instance.submitJobVerification(uid, url);
       if (!mounted) return;
       setState(() {
-        _uploadingDocs.remove(title);
-        _submittedDocs.add(title);
+        _uploadingDocs.remove(label);
+        _submittedDocs.add(label);
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _uploadingDocs.remove(title));
+      setState(() => _uploadingDocs.remove(label));
       messenger.showSnackBar(
         const SnackBar(content: Text('제출에 실패했어요. 잠시 후 다시 시도해주세요.')),
       );
     }
   }
 
-  Future<void> _uploadPhoto(int slot) async {
-    if (_uploadingPhotos.contains(slot)) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final uid = FirebaseService.instance.uid;
-    if (uid == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('로그인 후 업로드할 수 있어요')));
-      return;
-    }
-    final file = await StorageService.instance.pickImage();
-    if (file == null) return;
-
-    if (!mounted) return;
-    setState(() => _uploadingPhotos.add(slot));
-    try {
-      final url = await StorageService.instance.uploadProfilePhoto(uid, file);
-      await UserService.instance.updatePhotoURL(uid, url);
-      if (!mounted) return;
-      AppScope.of(context).currentUserController.load();
-      setState(() {
-        _uploadingPhotos.remove(slot);
-        _photoUrls[slot] = url;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _uploadingPhotos.remove(slot));
-      messenger.showSnackBar(
-        const SnackBar(content: Text('업로드에 실패했어요. 잠시 후 다시 시도해주세요.')),
-      );
-    }
-  }
-
-  Widget _buildPhotoSlot(int slot, {IconData? icon, String? label}) {
-    return _PhotoUploadSlot(
-      icon: icon ?? Icons.add,
-      label: label,
-      imageUrl: _photoUrls[slot],
-      uploading: _uploadingPhotos.contains(slot),
-      onTap: () => _uploadPhoto(slot),
+  Widget _uploadRow(String label) {
+    return _VerificationDocumentCard(
+      icon: Icons.camera_alt_outlined,
+      title: label,
+      submitted: _submittedDocs.contains(label),
+      uploading: _uploadingDocs.contains(label),
+      onTap: () => _submitDocument(label),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final appState = AppScope.of(context);
+    final kakaoVerified = _isKakaoVerified(appState);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _PhoneVerificationCard(),
-        const SizedBox(height: 24),
-        const _SectionHeader(label: '프로필 사진', note: '선택'),
+        // ── 카카오톡 · 실명 인증 ──────────────────────────────
+        const _SectionHeader(label: '카카오톡 · 실명 인증', note: '본인 확인'),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildPhotoSlot(
-                0,
-                icon: Icons.camera_alt_outlined,
-                label: '대표',
+        if (kakaoVerified)
+          _KakaoVerifiedCard(
+            name: appState.currentUserController.profile?.displayName ?? '',
+          )
+        else
+          SizedBox(
+            width: double.infinity,
+            child: Material(
+              color: const Color(0xFFFEE500),
+              borderRadius: BorderRadius.circular(10),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _verifyingKakao ? null : _verifyKakao,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_verifyingKakao)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(
+                              Color(0xFF191600),
+                            ),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.chat_bubble,
+                          color: Color(0xFF191600),
+                          size: 20,
+                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _verifyingKakao ? '인증 중...' : '카카오톡으로 인증하기',
+                        style: const TextStyle(
+                          color: Color(0xFF191600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(child: _buildPhotoSlot(1)),
-            const SizedBox(width: 10),
-            Expanded(child: _buildPhotoSlot(2)),
+          ),
+
+        // ── 직업 유형 ────────────────────────────────────────
+        const SizedBox(height: 24),
+        const _SectionHeader(label: '직업 유형', note: '해당하는 유형 선택'),
+        const SizedBox(height: 10),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 3,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 1.35,
+          children: [
+            for (final item in _jobTypes)
+              _JobTypeCard(
+                label: item.label,
+                icon: item.icon,
+                selected: _jobType == item.type,
+                onTap: () => setState(() => _jobType = item.type),
+              ),
           ],
         ),
-        const SizedBox(height: 24),
-        const _SectionHeader(label: '직장 / 신분 인증', note: '선택 — 회차 신청 시 필수'),
-        const SizedBox(height: 10),
-        for (var i = 0; i < _documents.length; i++) ...[
-          if (i > 0) const SizedBox(height: 10),
-          _VerificationDocumentCard(
-            icon: _documents[i].icon,
-            title: _documents[i].title,
-            submitted: _submittedDocs.contains(_documents[i].title),
-            uploading: _uploadingDocs.contains(_documents[i].title),
-            onTap: () => _submitDocument(_documents[i].title),
+
+        // ── 유형별 입력 영역 ─────────────────────────────────
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.blush.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: _buildTypeSection(context),
+        ),
+
+        // ── 하단 안내 ────────────────────────────────────────
+        const SizedBox(height: 16),
+        AppCard(
+          color: AppColors.blush.withValues(alpha: 0.72),
+          borderColor: AppColors.rose,
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.shield_outlined,
+                color: AppColors.brandRed,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '운영진이 직접 확인 후 승인해요. 인증 자료는 검수 목적으로만 사용되고 곧 폐기돼요.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.cocoa,
+                    height: 1.55,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTypeSection(BuildContext context) {
+    switch (_jobType) {
+      case _JobType.company:
+        return _typeColumn(
+          context,
+          title: '회사원 · 재직 인증',
+          desc: '회사명(또는 사업자명)과 직급을 적어주세요. 인증은 아래 한 가지만 하면 돼요.',
+          children: [
+            _typeField(_companyCtrl, '회사명 또는 사업자명 (예: ○○주식회사)'),
+            const SizedBox(height: 8),
+            _typeField(_positionCtrl, '직급 / 직책 (예: 대리 · 백엔드 개발)'),
+            const SizedBox(height: 10),
+            _uploadRow('명함 · 사원증 · 재직증명서 중 1장'),
+            const _OrDivider(),
+            _uploadRow('회사 이메일로 인증 코드 받기'),
+          ],
+        );
+      case _JobType.self:
+        return _typeColumn(
+          context,
+          title: '자영업자 인증',
+          desc: '사업자등록증 또는 활동 증빙 사진 중 하나면 돼요.',
+          children: [
+            _typeField(_storeCtrl, '가게 / 사업장 이름'),
+            const SizedBox(height: 10),
+            _uploadRow('사업자 등록증 사진'),
+            const _OrDivider(),
+            _uploadRow('활동 증빙 사진 (영업 현장 · 간판 등)'),
+          ],
+        );
+      case _JobType.freelance:
+        return _typeColumn(
+          context,
+          title: '프리랜서 인증',
+          desc: '강의명 또는 온라인 활동(블로그·인스타 등) 중 하나면 돼요.',
+          children: [
+            _typeField(_activityCtrl, '강의명 / 주요 활동 (예: ○○ 클래스 · ○○ 채널)'),
+            const SizedBox(height: 10),
+            _uploadRow('강의 페이지 · 블로그 · 인스타 스크린샷'),
+            const _OrDivider(),
+            _uploadRow('사업자 등록증 사진 (있는 경우)'),
+          ],
+        );
+      case _JobType.employed:
+      case _JobType.jobseeker:
+        final isEmployed = _jobType == _JobType.employed;
+        return _typeColumn(
+          context,
+          title: '${isEmployed ? '재직중' : '취업준비중'} · 간편 확인',
+          desc: '서류 제출 없이 체크만 하고 넘어갈 수 있어요. 필요 시 운영진이 추가 확인을 요청할 수 있어요.',
+          children: [
+            const SizedBox(height: 4),
+            _CheckConfirmButton(
+              label: isEmployed ? '현재 재직 중이 맞아요.' : '현재 취업 준비 중이 맞아요.',
+              checked: _checkAgreed,
+              onTap: () => setState(() => _checkAgreed = !_checkAgreed),
+            ),
+          ],
+        );
+    }
+  }
+
+  Widget _typeColumn(
+    BuildContext context, {
+    required String title,
+    required String desc,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.cocoa,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          desc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.mutedText,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _typeField(TextEditingController controller, String hint) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(
+        color: AppColors.cocoa,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+      ),
+      decoration: InputDecoration(hintText: hint),
+    );
+  }
+}
+
+/// 카카오 인증 완료 카드 (초록 체크).
+class _KakaoVerifiedCard extends StatelessWidget {
+  const _KakaoVerifiedCard({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.check, color: AppColors.success, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '카카오 인증 완료',
+                  style: TextStyle(
+                    color: AppColors.cocoa,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  name.isEmpty ? '카카오톡 · 실명 확인됨' : '$name · 실명 확인됨',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              '완료',
+              style: TextStyle(
+                color: AppColors.success,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
-      ],
+      ),
+    );
+  }
+}
+
+/// 직업 유형 선택 카드 (3열 그리드).
+class _JobTypeCard extends StatelessWidget {
+  const _JobTypeCard({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.burgundy : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: selected ? AppColors.gold : AppColors.line,
+          width: selected ? 1.4 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected ? AppColors.butter : AppColors.burgundy,
+              size: 22,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.cocoa,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// '또는' 구분선.
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: AppColors.line, height: 1)),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              '또는',
+              style: TextStyle(
+                color: AppColors.mutedText,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: AppColors.line, height: 1)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 재직중/취업준비중 확인용 체크박스형 버튼.
+class _CheckConfirmButton extends StatelessWidget {
+  const _CheckConfirmButton({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool checked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: checked ? AppColors.burgundy : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: checked ? AppColors.gold : AppColors.line,
+          width: checked ? 1.4 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: checked ? AppColors.gold : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: checked
+                      ? null
+                      : Border.all(color: AppColors.line),
+                ),
+                child: checked
+                    ? const Icon(
+                        Icons.check,
+                        color: AppColors.burgundy,
+                        size: 16,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: checked ? Colors.white : AppColors.cocoa,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -3529,76 +3700,6 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _PhoneVerificationCard extends StatelessWidget {
-  const _PhoneVerificationCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.check, color: AppColors.success, size: 24),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '휴대폰 인증',
-                  style: TextStyle(
-                    color: AppColors.cocoa,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '010-****-0000',
-                  style: TextStyle(
-                    color: AppColors.mutedText,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Text(
-              '완료',
-              style: TextStyle(
-                color: AppColors.success,
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

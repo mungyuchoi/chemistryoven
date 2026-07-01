@@ -509,7 +509,6 @@ enum OnboardingStep {
   basicInfo,
   rhythm,
   conversation,
-  tastes,
   lifestyle,
   keywords,
   preferences,
@@ -531,18 +530,16 @@ extension OnboardingStepX on OnboardingStep {
         return 'STEP 3';
       case OnboardingStep.conversation:
         return 'STEP 4';
-      case OnboardingStep.tastes:
-        return 'STEP 5';
       case OnboardingStep.lifestyle:
-        return 'STEP 6';
+        return 'STEP 5';
       case OnboardingStep.keywords:
-        return 'STEP 7';
+        return 'STEP 6';
       case OnboardingStep.preferences:
-        return 'STEP 8';
+        return 'STEP 7';
       case OnboardingStep.profilePreview:
-        return 'STEP 9';
+        return 'STEP 8';
       case OnboardingStep.verification:
-        return 'STEP 10';
+        return 'STEP 9';
       case OnboardingStep.result:
         return 'CHEMISTRY ANALYSIS';
     }
@@ -560,8 +557,6 @@ extension OnboardingStepX on OnboardingStep {
         return '나의 일상 리듬을 알려주세요.';
       case OnboardingStep.conversation:
         return '처음 만난 사람과\n가까워지기 좋은 순간은?';
-      case OnboardingStep.tastes:
-        return '대화가 자연스럽게 시작될 취향을 알려주세요.';
       case OnboardingStep.lifestyle:
         return '디저트와 라이프스타일 취향을 알려주세요.';
       case OnboardingStep.keywords:
@@ -589,8 +584,6 @@ extension OnboardingStepX on OnboardingStep {
         return '비슷한 시간대에 편하게 참여할 수 있는 회차를 추천해드려요.';
       case OnboardingStep.conversation:
         return '대화 스타일을 분석하기보다, 자연스럽게 가까워지는 순간을 찾아볼게요.';
-      case OnboardingStep.tastes:
-        return '현장 대화와 케미 분석에 활용돼요.';
       case OnboardingStep.lifestyle:
         return '베이킹 현장에서 편안한 메뉴와 대화 소재를 추천해요.';
       case OnboardingStep.keywords:

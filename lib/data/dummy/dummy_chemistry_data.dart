@@ -566,18 +566,6 @@ const demoOnboardingChoices = <OnboardingStep, List<String>>{
     '가벼운 농담',
     '천천히 친해짐',
   ],
-  OnboardingStep.tastes: [
-    '영화',
-    '전시',
-    '여행',
-    '맛집',
-    '운동',
-    '독서',
-    '음악',
-    '카페',
-    '산책',
-    '요리',
-  ],
   OnboardingStep.lifestyle: [
     '초콜릿',
     '과일',

@@ -118,21 +118,9 @@ prompts/{promptVersion}                      # Gemini 기본 프롬프트 버전
   "religion": "무교",
   "mbti": "INFJ",
 
-  // 온보딩 결과
-  "onboarding": {
-    "completed": true,
-    "baseCharacterId": "tiramisu",  // AI 추천 기본 캐릭터
-    "answers": { /* 설문 원본 (PSYCHOLOGY 산출용) */ },
-    "preferences": {                // STRICT 산출용 선호값
-      "ageRange": [30, 36],
-      "heightMin": 175,
-      "mbti": ["ENFP", "ENTJ", "ESTP"],
-      "religion": ["무교", "any"],
-      "avoidJobs": ["디자인"],
-      "smoking": "비흡연 선호",
-      "drinking": "1~2잔"
-    }
-  },
+  "onboardingCompleted": true,      // 온보딩 완료 플래그(빠른 게이팅용)
+  // ⚠️ 온보딩 설문 원본/선호값/기본 캐릭터는 users 문서에 직접 넣지 않고
+  //    users/{uid}/onboarding/current 서브컬렉션에 분리 저장(§3.2.1).
 
   // 인증/상태
   "verification": {
@@ -155,6 +143,28 @@ prompts/{promptVersion}                      # Gemini 기본 프롬프트 버전
 ```
 
 > 쓰기 규칙: 로그인 시 `set(merge:true)` 로 `lastLoginAt/fcmToken`만 갱신, 신규면 전체 기본 문서 생성 (mileage_thief `saveUserToFirestore` 패턴).
+
+#### 3.2.1 `users/{uid}/onboarding/current` — 온보딩 설문 결과 (서브컬렉션)
+
+설문 원본과 선호값은 크기가 크고 users 문서를 비대하게 만들므로 서브컬렉션으로 분리한다.
+
+```jsonc
+{
+  "completed": true,
+  "baseCharacterId": "tiramisu",   // AI 추천 기본 캐릭터
+  "answers": { /* 단계별 설문 원본 (PSYCHOLOGY 산출용) */ },
+  "preferences": {                 // STRICT 산출용 선호값
+    "ageRange": [30, 36],
+    "heightMin": 175,
+    "mbti": ["ENFP", "ENTJ", "ESTP"],
+    "religion": ["무교", "any"],
+    "avoidJobs": ["디자인"]
+  },
+  "updatedAt": "ts"
+}
+```
+
+> 보안 규칙: `users/{uid}` 의 재귀 매치(`match /{document=**}`)가 소유자·운영자 읽기/쓰기를 이미 커버. 읽기는 `CurrentUserController` 가 users 문서와 함께 로드해 `UserProfile.baseCharacterId/onboardingCompleted` 로 노출.
 
 ### 3.3 `characters/{characterId}` — 케미 캐릭터 마스터 (도감 20종)
 

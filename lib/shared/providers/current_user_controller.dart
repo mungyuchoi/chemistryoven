@@ -24,9 +24,18 @@ class CurrentUserController extends ChangeNotifier {
     try {
       final snapshot = await FirebaseService.instance.userDoc(uid).get();
       final data = snapshot.data();
-      _profile = (snapshot.exists && data != null)
-          ? UserProfile.fromMap(uid, data)
-          : null;
+      if (snapshot.exists && data != null) {
+        // 온보딩 설문 결과는 서브컬렉션(users/{uid}/onboarding/current)에서 읽는다.
+        final onboardingSnap =
+            await FirebaseService.instance.onboardingDoc(uid).get();
+        _profile = UserProfile.fromMap(
+          uid,
+          data,
+          onboardingData: onboardingSnap.data(),
+        );
+      } else {
+        _profile = null;
+      }
     } catch (_) {
       _profile = null;
     } finally {

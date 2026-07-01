@@ -43,11 +43,10 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   _AdminScreen _screen = _AdminScreen.login;
-  _AdminApplicantData _selectedApplicant = _adminApplicants[4];
+  _AdminApplicantData _selectedApplicant = _emptyApplicant;
   int _applicantStatusFilter = 0;
   int _applicantSort = 0;
   int _applicantTab = 0;
-  int _selectionPoolMode = 0;
   _AdminScreen _reviewsBackTarget = _AdminScreen.matchResult;
   int _menCount = 4;
   int _womenCount = 4;
@@ -69,12 +68,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _writingStatus = false;
   bool _scoringSession = false;
   bool _uploadingCover = false;
-  Map<String, _SeatAssignment> _seatAssignments = Map.of(
-    _initialSeatAssignments,
-  );
-  String? _selectedSeatId = 'A1';
-  String? _lastSeatSwap;
-  int _seatSwapCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -335,8 +328,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.dispose();
   }
 
-  /// 선택된 회차 id 로 실제 회차를 찾아 표시용 클래스로 변환.
-  /// 선택이 없거나 못 찾으면 데모 대표 회차로 폴백.
+  /// 선택된 회차 id 로 실제(Firestore) 회차를 찾아 표시용 클래스로 변환.
+  /// 선택이 없거나 못 찾으면 빈 회차로 폴백(더미 데이터 아님).
   ChemistryClass _resolveSelectedClass(AppState appState) {
     final sessions = appState.sessionsController.sessions;
     final id = _selectedSessionId;
@@ -347,7 +340,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
     }
-    return appState.repository.fetchFeaturedClass();
+    if (sessions.isNotEmpty) {
+      return sessions.first.toDisplayClass();
+    }
+    return const ChemistrySession(id: '', title: '회차').toDisplayClass();
   }
 
   /// 회차 게시 → Firestore sessions 에 생성.
@@ -486,42 +482,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _sessionMenuCtrl.clear();
   }
 
-  String get _seatingEditSubtitle {
-    if (_lastSeatSwap != null) {
-      return '$_lastSeatSwap 변경됨';
-    }
-    return '${_selectedSeatId ?? '자리'} 선택됨';
-  }
-
-  String get _seatingEditScore => _seatSwapCount == 0 ? '84.2' : '82.6 -1.6';
-
-  void _handleSeatTap(String seatId) {
-    final selectedSeatId = _selectedSeatId;
-    if (selectedSeatId == null || selectedSeatId == seatId) {
-      setState(() => _selectedSeatId = seatId);
-      return;
-    }
-
-    setState(() {
-      final updated = Map<String, _SeatAssignment>.of(_seatAssignments);
-      final selectedAssignment = updated[selectedSeatId]!;
-      updated[selectedSeatId] = updated[seatId]!;
-      updated[seatId] = selectedAssignment;
-      _seatAssignments = updated;
-      _selectedSeatId = seatId;
-      _lastSeatSwap = '$selectedSeatId ↔ $seatId';
-      _seatSwapCount += 1;
-    });
-  }
-
-  void _resetSeatAssignments() {
-    setState(() {
-      _seatAssignments = Map.of(_initialSeatAssignments);
-      _selectedSeatId = 'A1';
-      _lastSeatSwap = null;
-      _seatSwapCount = 0;
-    });
-  }
 
   _AdminTab _tabForScreen(_AdminScreen screen) {
     switch (screen) {
@@ -661,9 +621,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  /// 대시보드에 노출할 대표 회차: 선택된 회차 → 모집중 → 첫 회차 순으로 폴백.
+  /// 서버(Firestore) 회차가 하나도 없으면 null.
+  ChemistrySession? _dashboardSession(AppState appState) {
+    final sessions = appState.sessionsController.sessions;
+    if (sessions.isEmpty) return null;
+    final id = _selectedSessionId;
+    if (id != null) {
+      for (final session in sessions) {
+        if (session.id == id) return session;
+      }
+    }
+    for (final session in sessions) {
+      if (session.status == 'recruiting') return session;
+    }
+    return sessions.first;
+  }
+
   Widget _buildDashboard(BuildContext context, AppState appState) {
-    final admin = appState.adminProvider;
-    final featured = appState.repository.fetchFeaturedClass();
+    final session = _dashboardSession(appState);
+    final now = DateTime.now();
+    const weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+    final todayText =
+        '오늘은 ${now.month}/${now.day} (${weekdayLabels[now.weekday - 1]})';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,18 +661,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
         ),
         const SizedBox(height: 4),
-        Text('오늘은 5/22 (금)', style: _displayStyle(context, 30)),
+        Text(todayText, style: _displayStyle(context, 30)),
         const SizedBox(height: 16),
-        _AdminEventSummary(
-          title: featured.title,
-          subtitle: '${featured.dateText} · ${featured.place}',
-          stats: [
-            _StatData('신청', '34', '+6'),
-            _StatData('인증', '${admin.pendingVerificationCount}', '대기'),
-            _StatData('입금', '${admin.paidCount + 6}', '48h'),
-            _StatData('확정', '2/8', ''),
-          ],
-        ),
+        if (session == null)
+          _DashboardEmptyState(
+            title: '아직 등록된 회차가 없어요',
+            body: '새 회차를 만들면 신청·인증 현황이 여기에 표시돼요.',
+            actionLabel: '새 회차 만들기',
+            onAction: () => _go(_AdminScreen.sessionCreate),
+          )
+        else
+          _AdminEventSummary(
+            eyebrow: '${session.statusLabel} · 대표 회차',
+            title: session.title,
+            subtitle: [
+              if (session.dateText.isNotEmpty) session.dateText,
+              if (session.location.isNotEmpty) session.location,
+            ].join(' · '),
+            stats: [
+              _StatData('신청', '${session.applicationCount}', ''),
+              _StatData('상태', session.statusLabel, ''),
+              _StatData(
+                '모집',
+                '${session.recruitMale + session.recruitFemale}',
+                '남 ${session.recruitMale}·여 ${session.recruitFemale}',
+              ),
+              _StatData('확정', '-', ''),
+            ],
+          ),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -731,144 +727,63 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _SectionHeader(title: '8기 성비 & 인원', trailing: '목표 4:4'),
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 17,
-                      child: Container(height: 10, color: AppColors.pistachio),
-                    ),
-                    Expanded(
-                      flex: 17,
-                      child: Container(height: 10, color: AppColors.burgundy),
-                    ),
-                  ],
+        if (session != null) ...[
+          AppCard(
+            color: Colors.white,
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SectionHeader(
+                  title: '성비 & 인원',
+                  trailing:
+                      '목표 ${session.recruitMale}:${session.recruitFemale}',
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '현재 확정 남 1 / 여 1. 선정 후 캐릭터 배정을 진행하세요.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _RecentApplicantsCard(
-          onOpenAll: () => _go(_AdminScreen.applicants),
-          onOpenApplicant: (applicant) {
-            setState(() {
-              _selectedApplicant = applicant;
-              _applicantTab = 0;
-              _screen = _AdminScreen.applicantDetail;
-            });
-          },
-        ),
-        const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionHeader(title: '오늘 투표 라운드', trailing: 'LIVE'),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const _AdminMonogram(size: 42, label: '첫'),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '첫인상 선택',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: AppColors.cocoa,
-                                fontWeight: FontWeight.w800,
-                              ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: session.recruitMale,
+                        child: Container(
+                          height: 10,
+                          color: AppColors.pistachio,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '7/8 제출 · 남은 시간 00:38',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.mutedText),
+                      ),
+                      Expanded(
+                        flex: session.recruitFemale,
+                        child: Container(
+                          height: 10,
+                          color: AppColors.burgundy,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  _MiniButton(
-                    label: '열기',
-                    onTap: () => _go(_AdminScreen.voting),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '신청 ${session.applicationCount}명. 인원 선정을 진행하면 확정 인원이 여기에 표시돼요.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 14),
+        ],
       ],
     );
   }
 
   Widget _buildNotifications(BuildContext context) {
-    const items = [
-      _NotificationData(
-        icon: Icons.auto_awesome_rounded,
-        category: '인원 선정',
-        title: '8기 신청자 6명 인증 완료',
-        body: '인원 선정 단계로 진행하세요',
-        time: '12분 전',
-        urgent: true,
-      ),
-      _NotificationData(
-        icon: Icons.payments_outlined,
-        category: '결제',
-        title: '8기 입금 대기 6건',
-        body: '48시간 내 미입금 시 자동 미선정 처리',
-        time: '1시간 전',
-        urgent: true,
-      ),
-      _NotificationData(
-        icon: Icons.shopping_bag_outlined,
-        category: '운영',
-        title: '7기 첫인상 라운드가 정상 종료되었어요',
-        body: '중간 선택 라운드를 열 수 있어요',
-        time: '3시간 전',
-      ),
-      _NotificationData(
-        icon: Icons.article_outlined,
-        category: '후기',
-        title: '7기 후기 3건 승인 대기',
-        body: '후기 노출 전 검토가 필요해요',
-        time: '어제',
-      ),
-      _NotificationData(
-        icon: Icons.shield_outlined,
-        category: '시스템',
-        title: '월간 운영 리포트가 준비되었어요',
-        body: '이번 달 신청 전환을 확인하세요',
-        time: '어제',
-      ),
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '알림',
-          subtitle: '새 알림 4건',
+          subtitle: '운영 알림',
           onBack: () => _go(_AdminScreen.dashboard),
           actionIcon: Icons.notifications_none_rounded,
         ),
@@ -878,9 +793,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           runSpacing: 8,
           children: [
             const _AdminChip(label: '전체', selected: true),
-            const _AdminChip(label: '운영'),
-            const _AdminChip(label: '결제'),
-            const _AdminChip(label: '시스템'),
             InkWell(
               borderRadius: BorderRadius.circular(999),
               onTap: () => _openReviewsFrom(_AdminScreen.notifications),
@@ -889,15 +801,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 14),
-        for (final item in items) ...[
-          _NotificationCard(
-            item: item,
-            onTap: item.category == '후기'
-                ? () => _openReviewsFrom(_AdminScreen.notifications)
-                : null,
-          ),
-          const SizedBox(height: 10),
-        ],
+        const _ScreenEmptyState(
+          icon: Icons.notifications_none_rounded,
+          title: '새 알림이 없어요',
+          body: '신청·인증·결제 등 운영 알림이 도착하면 여기에 표시됩니다.',
+        ),
       ],
     );
   }
@@ -1051,12 +959,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 12),
               _ProgressStep(
                 title: '모집',
-                subtitle: '신청 34명 · 인증 29',
-                done: true,
+                subtitle: '신청 ${classData.applicationCount}명',
+                done: classData.applicationCount > 0,
               ),
               _ProgressStep(
                 title: '인원 선정',
-                subtitle: '대기 8명 · 검토 중',
+                subtitle: '점수 계산 후 진행',
                 active: true,
                 actionLabel: '이어서',
                 onAction: () => _go(_AdminScreen.selectionPool),
@@ -1252,6 +1160,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildApplicantList(BuildContext context) {
     final applicants = _sortedApplicants();
+    final total = _realApplicants.length;
+    final verifiedCount = _realApplicants
+        .where((a) => a.verificationJob == 'approved')
+        .length;
+    final heldCount = _realApplicants.where((a) => a.status == '보류').length;
+    final rejectedCount = _realApplicants.where((a) => a.status == '탈락').length;
+    final selectedCount = _realApplicants.where((a) => a.selected).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1266,20 +1181,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Text('신청자', style: _displayStyle(context, 29)),
         const SizedBox(height: 6),
         Text(
-          '8기 · 34명 · 인증 29',
+          _selectedSessionId == null
+              ? '회차를 먼저 선택해 주세요'
+              : '전체 $total명 · 직장인증 $verifiedCount',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
         ),
         const SizedBox(height: 14),
         _HorizontalSelectableChipStrip(
-          labels: const [
-            '전체 34',
-            '신규 6',
-            '인증 대기 5',
-            '인증 완료 29',
-            '보류 2',
-            '탈락 1',
+          labels: [
+            '전체 $total',
+            '선정 $selectedCount',
+            '직장인증 $verifiedCount',
+            '보류 $heldCount',
+            '탈락 $rejectedCount',
           ],
           selectedIndex: _applicantStatusFilter,
           onSelected: (index) => setState(() => _applicantStatusFilter = index),
@@ -1369,7 +1285,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: applicant.name,
-          subtitle: '${applicant.gender} · ${applicant.age} · 인증 완료',
+          subtitle: '${applicant.gender} · ${applicant.age} · ${applicant.status}',
           onBack: () => _go(_AdminScreen.applicants),
           actionIcon: Icons.edit_outlined,
         ),
@@ -1403,9 +1319,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: const [
-                        _ApplicantStatusBadge(label: '인증 완료'),
-                        _ApplicantStatusBadge(label: '선정 후보', selected: true),
+                      children: [
+                        _ApplicantStatusBadge(
+                          label: _jobVerificationLabel(
+                            applicant.verificationJob,
+                          ),
+                        ),
+                        _ApplicantStatusBadge(
+                          label: applicant.status,
+                          selected: applicant.selected,
+                        ),
                       ],
                     ),
                   ],
@@ -1602,300 +1525,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               value: applicant.name,
             ),
             const _DividerLine(),
-            const _InfoLine(
-              icon: Icons.phone_iphone_outlined,
-              label: '연락처',
-              value: '010-****-0000',
+            _InfoLine(
+              icon: Icons.cake_outlined,
+              label: '생년',
+              value: applicant.birth,
             ),
             const _DividerLine(),
-            const _InfoLine(
-              icon: Icons.place_outlined,
-              label: '지역',
-              value: '서울 강남권',
-            ),
-            const _DividerLine(),
-            const _InfoLine(
-              icon: Icons.favorite_border_rounded,
-              label: '종교',
-              value: '무교',
+            _InfoLine(
+              icon: Icons.straighten_outlined,
+              label: '키',
+              value: applicant.height,
             ),
             const _DividerLine(),
             _InfoLine(
               icon: Icons.auto_awesome_outlined,
-              label: '기본 캐릭터',
-              value: applicant.character,
+              label: 'MBTI',
+              value: applicant.mbti,
+            ),
+            const _DividerLine(),
+            _InfoLine(
+              icon: Icons.place_outlined,
+              label: '지역',
+              value: applicant.job,
             ),
           ],
-        ),
-      ),
-      const SizedBox(height: 14),
-      AppCard(
-        color: AppColors.ivory,
-        padding: const EdgeInsets.all(14),
-        child: Text(
-          '운영 메모\n7기 미선정, 8기는 디자인 동종 풀의 균형 후보로 도움 가능.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.cocoa,
-            height: 1.5,
-          ),
         ),
       ),
     ];
   }
 
   List<Widget> _applicantPrefPanel(BuildContext context) {
-    return [
-      _PanelNote(
-        child: RichText(
-          text: TextSpan(
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.mutedText,
-              height: 1.55,
-              fontSize: 11.5,
-            ),
-            children: const [
-              TextSpan(
-                text: 'STRICT 조건',
-                style: TextStyle(
-                  color: AppColors.burgundy,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              TextSpan(
-                text:
-                    ' · 신청자가 직접 입력한 선호값이에요. 흡연·주량·기피직군·나이 불충족 시 '
-                    '하드 필터링(매칭 제외) 대상이 돼요. 상대에게는 공개되지 않아요.',
-              ),
-            ],
-          ),
-        ),
-      ),
-      const SizedBox(height: 12),
-      AppCard(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: const [
-            _InfoLine(
-              icon: Icons.person_outline,
-              label: '선호 나이대',
-              value: '30 ~ 36세',
-            ),
-            _DividerLine(),
-            _InfoLine(
-              icon: Icons.straighten_outlined,
-              label: '이상형 키',
-              value: '175cm 이상',
-            ),
-            _DividerLine(),
-            _InfoLine(
-              icon: Icons.auto_awesome_outlined,
-              label: '선호 MBTI',
-              value: 'ENFP · ENTJ · ESTP',
-            ),
-            _DividerLine(),
-            _InfoLine(
-              icon: Icons.favorite_border_rounded,
-              label: '선호 종교',
-              value: '무교 · 상관없음',
-            ),
-            _DividerLine(),
-            _InfoLine(
-              icon: Icons.shield_outlined,
-              label: '기피 직군',
-              value: '같은 직군(디자인)',
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 12),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Expanded(
-            child: _PrefMatchBox(label: '선호 나이대', value: '충족', tone: 0),
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: _PrefMatchBox(label: '이상형 키', value: '충족', tone: 0),
-          ),
-        ],
-      ),
-      const SizedBox(height: 10),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Expanded(
-            child: _PrefMatchBox(label: '선호 MBTI', value: '부분 충족', tone: 1),
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: _PrefMatchBox(label: '기피 직군', value: '회피 필요', tone: 2),
-          ),
-        ],
+    return const [
+      _PanelEmptyState(
+        icon: Icons.tune_rounded,
+        message: '선호 조건 데이터가 아직 연동되지 않았어요.\n신청서 선호값 파이프라인이 준비되면 표시됩니다.',
       ),
     ];
   }
 
   List<Widget> _applicantAnswerPanel(BuildContext context) {
-    return [
-      _PanelNote(
-        child: Text(
-          '온보딩 설문에서 신청자가 고른 답변 원본이에요. '
-          'PSYCHOLOGY 점수(궁합·가치관·취향·베이킹 리듬) 산출에 사용돼요.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.mutedText,
-            height: 1.55,
-            fontSize: 11.5,
-          ),
-        ),
-      ),
-      const SizedBox(height: 12),
-      const _AnswerBlock(
-        title: '일상 리듬',
-        chips: ['저녁형', '주 2~3회 운동', '집·카페 선호'],
-      ),
-      const _AnswerBlock(
-        title: '취향 케미',
-        chips: ['전시·미술관', '플레이리스트 공유', '여행 계획형', '글쓰기'],
-      ),
-      const _AnswerBlock(
-        title: '참여 가능 시간대',
-        chips: ['토요일 오후', '일요일 오후'],
-      ),
-      const _AnswerBlock(
-        title: '디저트 · 주량 · 흡연',
-        chips: ['까눌레·휘낭시에', '와인 1~2잔', '비흡연'],
-      ),
-      const _AnswerBlock(
-        title: '호감 포인트',
-        chips: ['대화의 결', '취향 존중', '말투의 다정함'],
-      ),
-      const _AnswerBlock(
-        title: '불편하게 느끼는 요소',
-        chips: ['소비 성향이 너무 다른 것', '예의 없는 말투'],
-        warn: true,
-      ),
-      const _AnswerBlock(
-        title: '나와 잘 맞을 것 같은 사람',
-        chips: ['웃음 코드가 맞는', '나와 다른 성향'],
+    return const [
+      _PanelEmptyState(
+        icon: Icons.quiz_outlined,
+        message: '설문 답변 데이터가 아직 연동되지 않았어요.\n온보딩 설문 응답 파이프라인이 준비되면 표시됩니다.',
       ),
     ];
   }
 
   Widget _buildSelectionPool(BuildContext context) {
-    final men = _adminApplicants.where((item) => item.gender == '남').toList();
-    final women = _adminApplicants.where((item) => item.gender == '여').toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '인원 선정',
-          subtitle: '8기 · 케미 기반 추천',
+          subtitle: '케미 기반 추천',
           onBack: () => _go(_AdminScreen.sessions),
-          actionText: '가중치',
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: AppColors.burgundy,
-          borderColor: AppColors.burgundy,
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      '현재 선정',
-                      style: TextStyle(
-                        color: AppColors.butter,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '4 : 4 목표',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppColors.butter),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '2 / 8',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: const [
-                  Expanded(
-                    child: _DarkMetric(label: '조합 평균', value: '82.4'),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _DarkMetric(label: '시너지', value: '안정'),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _DarkMetric(label: '위험 쌍', value: '0'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _HorizontalSelectableChipStrip(
-          labels: const ['후보 풀', '케미 조합', '밸런스'],
-          selectedIndex: _selectionPoolMode,
-          onSelected: (index) => setState(() => _selectionPoolMode = index),
-        ),
-        const SizedBox(height: 16),
-        _CandidateGroup(title: '남성 후보', applicants: men),
-        const SizedBox(height: 12),
-        _CandidateGroup(title: '여성 후보', applicants: women),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(label: '다시 추천', muted: true, onTap: () {}),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '케미 조합보기',
-                onTap: () {
-                  setState(() {
-                    _selectedApplicant = women.firstWhere(
-                      (applicant) => applicant.selected,
-                      orElse: () => women.first,
-                    );
-                    _screen = _AdminScreen.chemistryCombo;
-                  });
-                },
-              ),
-            ),
-          ],
+        const _ScreenEmptyState(
+          icon: Icons.auto_awesome_outlined,
+          title: '아직 선정 결과가 없어요',
+          body:
+              '회차 상세에서 AI 점수 계산을 실행하면 후보 케미 점수와 추천 결과가 여기에 표시됩니다.',
         ),
       ],
     );
   }
 
   Widget _buildChemistryCombo(BuildContext context) {
-    final pivot = _selectedApplicant;
-    final counterpartGender = pivot.gender == '남' ? '여성' : '남성';
-    final candidates = _adminApplicants
-        .where((item) => item.gender != pivot.gender)
-        .take(4)
-        .toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1906,152 +1603,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          borderColor: AppColors.burgundy,
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              _ApplicantAvatar(applicant: pivot, size: 64),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _TinyEyebrow('PIVOT'),
-                    const SizedBox(height: 6),
-                    Text(
-                      pivot.name,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.cocoa,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${pivot.age} · ${pivot.mbti} · ${pivot.job}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.mutedText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const _PivotSelectedBadge(),
-                  ],
-                ),
-              ),
-              _MiniButton(label: '변경', onTap: () {}),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          '이 분과 1:1로 잘 맞는 $counterpartGender 후보예요. 케미점수는 상호 관계로 계산돼요.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.mutedText,
-            height: 1.5,
-          ),
-        ),
-        const SizedBox(height: 18),
-        _SectionHeader(
-          title: '잘 맞는 $counterpartGender Top 4',
-          trailing: '조합 시너지 순',
-        ),
-        const SizedBox(height: 12),
-        for (var i = 0; i < candidates.length; i++) ...[
-          _ComboCandidateCard(
-            applicant: candidates[i],
-            best: i == 0,
-            score: [91, 84, 79, 62][i],
-          ),
-          const SizedBox(height: 12),
-        ],
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(label: '초기화', muted: true, onTap: () {}),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '최종 선정 저장',
-                onTap: () => _go(_AdminScreen.participants),
-              ),
-            ),
-          ],
+        const _ScreenEmptyState(
+          icon: Icons.favorite_border_rounded,
+          title: '케미 조합 데이터가 없어요',
+          body: '인원 선정과 점수 계산이 끝나면 1:1 케미 조합 추천이 여기에 표시됩니다.',
         ),
       ],
     );
   }
 
   Widget _buildParticipants(BuildContext context) {
-    final confirmed = _adminApplicants.take(6).toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '참가자 관리',
-          subtitle: '8기 · 6명',
+          subtitle: '확정 참가자',
           onBack: () => _go(_AdminScreen.chemistryCombo),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          child: Row(
-            children: const [
-              Expanded(
-                child: _SmallMetric(label: '확정', value: '4/8'),
-              ),
-              Expanded(
-                child: _SmallMetric(label: '입금 대기', value: '2'),
-              ),
-              Expanded(
-                child: _SmallMetric(label: '참석 확인', value: '2'),
-              ),
-              Expanded(
-                child: _SmallMetric(label: '미연락', value: '1'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        const _SectionHeader(title: '확정 참가자', trailing: '6명'),
-        const SizedBox(height: 10),
-        for (var i = 0; i < confirmed.length; i++) ...[
-          _ParticipantCard(
-            applicant: confirmed[i],
-            paymentLabel: i < 3 ? '입금완료' : '입금대기',
-            attendLabel: i == 0 || i == 1 ? '참석확정' : '미확신',
-            waitingLabel: i == 4 ? '48h 내' : null,
-          ),
-          const SizedBox(height: 10),
-        ],
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(label: '일괄 알림', muted: true, onTap: () {}),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '캐릭터 배정으로',
-                onTap: () => _go(_AdminScreen.characterAssign),
-              ),
-            ),
-          ],
+        const _ScreenEmptyState(
+          icon: Icons.groups_outlined,
+          title: '확정 참가자가 없어요',
+          body: '인원 선정과 입금 확인이 끝나면 확정 참가자 명단이 여기에 표시됩니다.',
         ),
       ],
     );
   }
 
   Widget _buildCharacterAssign(BuildContext context) {
-    final men = _adminApplicants.where((item) => item.gender == '남').toList();
-    final women = _adminApplicants.where((item) => item.gender == '여').toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2062,80 +1643,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.auto_awesome_outlined,
-                color: AppColors.burgundy,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '기본 캐릭터를 우선 배정했어요. 중복이 없도록 운영자가 최종 확정해주세요.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.cocoa,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: const [
-                        _ActionPill(label: '자동 재배정'),
-                        _ActionPill(label: '전체 잠금'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
-        const _SectionHeader(title: '남성', trailing: '크루아상 / 소금빵 / 에클레어 / 단팥빵'),
-        const SizedBox(height: 10),
-        for (var i = 0; i < men.length; i++) ...[
-          _CharacterAssignRow(
-            applicant: men[i],
-            assigned: ['크루아상', '소금빵', '에클레어', '단팥빵'][i],
-            locked: i < 2,
-          ),
-          const SizedBox(height: 8),
-        ],
-        const SizedBox(height: 14),
-        const _SectionHeader(title: '여성', trailing: '티라미수 / 에그타르트 / 마들렌 / 몽블랑'),
-        const SizedBox(height: 10),
-        for (var i = 0; i < women.length; i++) ...[
-          _CharacterAssignRow(
-            applicant: women[i],
-            assigned: ['티라미수', '에그타르트', '마들렌', '몽블랑'][i],
-            locked: i < 2,
-          ),
-          const SizedBox(height: 8),
-        ],
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(label: '초기화', muted: true, onTap: () {}),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '배정 확정',
-                onTap: () => _go(_AdminScreen.voting),
-              ),
-            ),
-          ],
+        const _ScreenEmptyState(
+          icon: Icons.auto_awesome_outlined,
+          title: '배정할 참가자가 없어요',
+          body: '확정 참가자가 정해지면 회차 전용 캐릭터(닉네임) 배정을 여기에서 진행합니다.',
         ),
       ],
     );
@@ -2147,99 +1658,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: '투표 관리',
-          subtitle: '8기 · 회차 진행 중',
+          subtitle: '회차 진행 라운드',
           onBack: () => _go(_AdminScreen.characterAssign),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: AppColors.burgundy,
-          borderColor: AppColors.burgundy,
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'LIVE · 라운드 1',
-                style: TextStyle(
-                  color: AppColors.butter,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '첫인상 선택',
-                style: _displayStyle(context, 27).copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 14),
-              Divider(color: Colors.white.withValues(alpha: 0.18)),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Expanded(
-                    child: _DarkMetric(label: '응답', value: '7/8'),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: _DarkMetric(label: '남은 시간', value: '00:38'),
-                  ),
-                  const SizedBox(width: 8),
-                  _MiniButton(label: '지금닫기', onTap: () {}),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              const _AdminMonogram(size: 44, label: '단'),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _SectionHeader(title: '미응답자', trailing: '1명'),
-                    const SizedBox(height: 4),
-                    Text(
-                      '단팥빵 · 지원자 D\n22분 · 22초 경과',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.mutedText,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _MiniButton(label: '알림 보내기', onTap: () {}),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        const _SectionHeader(title: '라운드 상태', trailing: '3 단계'),
-        const SizedBox(height: 10),
-        const _RoundStatusCard(
-          number: '1',
-          title: '첫인상선택',
-          subtitle: '응답 7 / 8',
-          progress: 0.88,
-          active: true,
-        ),
-        const SizedBox(height: 10),
-        const _RoundStatusCard(
-          number: '2',
-          title: '중간선택',
-          subtitle: '응답 0 / 8',
-        ),
-        const SizedBox(height: 10),
-        const _RoundStatusCard(
-          number: '3',
-          title: '최종선택',
-          subtitle: '응답 0 / 8',
+        const _ScreenEmptyState(
+          icon: Icons.how_to_vote_outlined,
+          title: '진행 중인 투표 라운드가 없어요',
+          body: '회차 당일 투표 라운드가 시작되면 응답 현황과 미응답자가 여기에 실시간으로 표시됩니다.',
         ),
         const SizedBox(height: 16),
         Row(
@@ -2270,99 +1697,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: '자리배치',
-          subtitle: '자동 추천 · 8기',
+          subtitle: '자동 추천',
           onBack: () => _go(_AdminScreen.voting),
-          actionText: '자동',
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: AppColors.burgundy,
-          borderColor: AppColors.burgundy,
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'AUTO RECOMMEND',
-                style: TextStyle(
-                  color: AppColors.butter,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '케미·성비 균형 우선',
-                style: _displayStyle(context, 24).copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 12),
-              Divider(color: Colors.white.withValues(alpha: 0.18)),
-              const SizedBox(height: 10),
-              Row(
-                children: const [
-                  Expanded(
-                    child: _DarkMetric(label: '조합 평균', value: '84.2'),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _DarkMetric(label: '성비 균형', value: '50:50'),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _DarkMetric(label: '흐름 점수', value: '좋음'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _MiniButton(label: '다시추천', onTap: () {}),
-            const SizedBox(width: 8),
-            _MiniButton(label: '초기화', onTap: () {}),
-            const Spacer(),
-            Text(
-              '비교 모드',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.burgundy,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        _SeatingTable(
-          title: 'A 테이블',
-          tableName: 'TABLE A',
-          assignments: _seatAssignments,
-        ),
-        const SizedBox(height: 18),
-        _SeatingTable(
-          title: 'B 테이블',
-          tableName: 'TABLE B',
-          flipped: true,
-          assignments: _seatAssignments,
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(
-                label: '수동 편집',
-                muted: true,
-                onTap: () => _go(_AdminScreen.seatingEdit),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '이 배치로 저장',
-                onTap: () => _go(_AdminScreen.matchResult),
-              ),
-            ),
-          ],
+        const _ScreenEmptyState(
+          icon: Icons.chair_alt_outlined,
+          title: '자리배치안이 아직 없어요',
+          body: '참가자 확정과 케미 점수 계산이 끝나면 케미·성비 균형 기반 자리배치가 여기에 추천됩니다.',
         ),
       ],
     );
@@ -2374,96 +1716,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: '자리 수동 편집',
-          subtitle: _seatingEditSubtitle,
+          subtitle: '자리 교체',
           onBack: () => _go(_AdminScreen.seatingAuto),
-          actionText: '수정',
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.edit_outlined,
-                color: AppColors.burgundy,
-                size: 18,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '편집 모드 · 자리를 탭하고 다른 자리를 탭하면 자동 교체됩니다.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppColors.cocoa),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          child: Row(
-            children: [
-              const Expanded(
-                child: _SmallMetric(label: '기본 추천안', value: '84.2'),
-              ),
-              Expanded(
-                child: _SmallMetric(label: '수정본', value: _seatingEditScore),
-              ),
-              Expanded(
-                child: _SmallMetric(label: '변경', value: '$_seatSwapCount명'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        _SeatingTable(
-          title: 'A 테이블',
-          tableName: 'TABLE A',
-          assignments: _seatAssignments,
-          selectedSeatId: _selectedSeatId,
-          editing: true,
-          onSeatTap: _handleSeatTap,
-        ),
-        const SizedBox(height: 18),
-        _SeatingTable(
-          title: 'B 테이블',
-          tableName: 'TABLE B',
-          flipped: true,
-          assignments: _seatAssignments,
-          selectedSeatId: _selectedSeatId,
-          editing: true,
-          onSeatTap: _handleSeatTap,
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(
-                label: '초기화',
-                muted: true,
-                onTap: _resetSeatAssignments,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _WideButton(
-                label: '다시추천',
-                muted: true,
-                onTap: _resetSeatAssignments,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _WideButton(
-                label: '변경 저장',
-                onTap: () => _go(_AdminScreen.matchResult),
-              ),
-            ),
-          ],
+        const _ScreenEmptyState(
+          icon: Icons.edit_outlined,
+          title: '편집할 자리배치가 없어요',
+          body: '자동 자리배치안이 생성되면 여기에서 자리를 직접 교체할 수 있어요.',
         ),
       ],
     );
@@ -2475,85 +1735,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: '매칭 결과',
-          subtitle: '8기 종료 · 24분 전',
+          subtitle: '최종 선택 집계',
           onBack: () => _go(_AdminScreen.voting),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        AppCard(
-          color: AppColors.burgundy,
-          borderColor: AppColors.burgundy,
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'FINAL RESULT',
-                style: TextStyle(
-                  color: AppColors.butter,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '커플 3쌍',
-                style: _displayStyle(context, 27).copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 12),
-              Divider(color: Colors.white.withValues(alpha: 0.18)),
-              const SizedBox(height: 10),
-              Row(
-                children: const [
-                  Expanded(
-                    child: _DarkMetric(label: '상호 선택', value: '3'),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _DarkMetric(label: '단방향', value: '4'),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _DarkMetric(label: '회차 만족', value: '92%'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        const _ScreenEmptyState(
+          icon: Icons.favorite_border_rounded,
+          title: '아직 매칭 결과가 없어요',
+          body: '최종 선택 라운드가 종료되면 상호 매칭·단방향 선택 결과가 여기에 집계됩니다.',
         ),
-        const SizedBox(height: 20),
-        const _SectionHeader(title: '상호 매칭', trailing: '3쌍 · 연락처 공개됨'),
-        const SizedBox(height: 10),
-        const _MatchPairCard(
-          left: '티',
-          right: '소',
-          title: '티라미수↔소금빵',
-          subtitle: '지원자 E·지원자 B',
-          score: '91',
-        ),
-        const SizedBox(height: 10),
-        const _MatchPairCard(
-          left: '에',
-          right: '크',
-          title: '에그타르트↔크루아상',
-          subtitle: '지원자 F·지원자 A',
-          score: '88',
-        ),
-        const SizedBox(height: 10),
-        const _MatchPairCard(
-          left: '마',
-          right: '에',
-          title: '마들렌↔에클레어',
-          subtitle: '지원자 G·지원자 C',
-          score: '79',
-        ),
-        const SizedBox(height: 20),
-        const _SectionHeader(title: '단방향 선택', trailing: '4건 · 비공개'),
-        const SizedBox(height: 10),
-        const _OneWayRow(left: '단팥빵', right: '몽블랑'),
-        const _OneWayRow(left: '에클레어', right: '티라미수'),
-        const _OneWayRow(left: '크루아상', right: '마들렌'),
-        const _OneWayRow(left: '소금빵', right: '에그타르트'),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -2579,51 +1770,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminTopBar(
           title: '후기 관리',
-          subtitle: '대기 3 · 승인 12 · 숨김 1',
+          subtitle: '후기 승인·노출 관리',
           onBack: () => _go(_reviewsBackTarget),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _AdminChip(label: '대기 3', selected: true),
-            _AdminChip(label: '승인 12'),
-            _AdminChip(label: '보류 1'),
-            _AdminChip(label: '숨김 1'),
-          ],
-        ),
-        const SizedBox(height: 14),
-        const _ReviewCard(
-          initial: '몽',
-          name: '몽블랑',
-          badge: '커플 인증',
-          text: '오븐 앞에서 시작된 대화가 카페까지 이어졌어요. 자연스러운 흐름이 좋았어요.',
-          images: 2,
-        ),
-        const SizedBox(height: 12),
-        const _ReviewCard(
-          initial: '소',
-          name: '소금빵',
-          badge: '데이트 후기',
-          text: '두 번째 만남에서 더 가까워졌어요. 진중한 분위라 편안했어요.',
-        ),
-        const SizedBox(height: 12),
-        const _ReviewCard(
-          initial: '에',
-          name: '에그타르트',
-          badge: '참여 후기',
-          text: '베이킹이 어색함을 풀어줘서 좋았어요. 다음 회차도 신청할게요.',
-          images: 2,
-        ),
-        const SizedBox(height: 12),
-        const _ReviewCard(
-          initial: '티',
-          name: '티라미수',
-          badge: '참여 후기',
-          text: '운영자분들이 친절했어요. 첫인상과 최종 선택이 같아서 신기했어요.',
-          approved: true,
+        const _ScreenEmptyState(
+          icon: Icons.rate_review_outlined,
+          title: '검토할 후기가 없어요',
+          body: '참가자가 후기를 남기면 승인 대기 목록이 여기에 표시됩니다.',
         ),
       ],
     );
@@ -2670,167 +1825,145 @@ class _AdminApplicantData {
   final String verificationJob;
 }
 
-class _SeatAssignment {
-  const _SeatAssignment({
-    required this.initial,
-    required this.character,
-    required this.name,
+/// 선택된 신청자가 없을 때의 안전한 기본값(더미 데이터 아님).
+const _emptyApplicant = _AdminApplicantData(
+  initial: '?',
+  name: '신청자',
+  gender: '-',
+  age: 0,
+  birth: '-',
+  height: '-',
+  mbti: '-',
+  job: '-',
+  character: '-',
+  status: '신청',
+  score: 0,
+  strictScore: 0,
+  objectiveScore: 0,
+  note: '',
+  selected: false,
+);
+
+/// 서버 데이터가 아직 없는 영역에 표시하는 큰 빈 상태 카드.
+class _ScreenEmptyState extends StatelessWidget {
+  const _ScreenEmptyState({
+    required this.icon,
+    required this.title,
+    required this.body,
   });
 
-  final String initial;
-  final String character;
-  final String name;
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, color: AppColors.burgundy, size: 34),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppColors.cocoa,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-const _initialSeatAssignments = <String, _SeatAssignment>{
-  'A1': _SeatAssignment(initial: '크', character: '크루아상', name: '지원자 A'),
-  'A2': _SeatAssignment(initial: '티', character: '티라미수', name: '지원자 E'),
-  'A3': _SeatAssignment(initial: '소', character: '소금빵', name: '지원자 B'),
-  'A4': _SeatAssignment(initial: '에', character: '에그타르트', name: '지원자 F'),
-  'B1': _SeatAssignment(initial: '예', character: '에클레어', name: '지원자 C'),
-  'B2': _SeatAssignment(initial: '마', character: '마들렌', name: '지원자 G'),
-  'B3': _SeatAssignment(initial: '단', character: '단팥빵', name: '지원자 D'),
-  'B4': _SeatAssignment(initial: '몽', character: '몽블랑', name: '지원자 H'),
-};
+/// 대시보드 히어로 자리에 회차가 없을 때 노출하는 빈 상태 카드.
+class _DashboardEmptyState extends StatelessWidget {
+  const _DashboardEmptyState({
+    required this.title,
+    required this.body,
+    required this.actionLabel,
+    required this.onAction,
+  });
 
-const _adminApplicants = <_AdminApplicantData>[
-  _AdminApplicantData(
-    initial: 'A',
-    name: '지원자 A',
-    gender: '남',
-    age: 30,
-    birth: '1996.02',
-    height: '178cm',
-    mbti: 'INFJ',
-    job: 'IT/개발',
-    character: '크루아상',
-    status: '인증대기',
-    score: 90,
-    strictScore: 88,
-    objectiveScore: 91,
-    note: '차분한 대화와 안정적인 직군. 첫 만남 긴장은 낮은 편.',
-    selected: true,
-  ),
-  _AdminApplicantData(
-    initial: 'B',
-    name: '지원자 B',
-    gender: '남',
-    age: 32,
-    birth: '1994.09',
-    height: '175cm',
-    mbti: 'ISTJ',
-    job: '금융',
-    character: '소금빵',
-    status: '입금대기',
-    score: 84,
-    strictScore: 79,
-    objectiveScore: 75,
-    note: '성실하고 관계 속도를 천천히 가져가는 편.',
-    selected: true,
-  ),
-  _AdminApplicantData(
-    initial: 'C',
-    name: '지원자 C',
-    gender: '남',
-    age: 29,
-    birth: '1997.01',
-    height: '180cm',
-    mbti: 'ENTP',
-    job: '디자인',
-    character: '단팥빵',
-    status: '인증완료',
-    score: 78,
-    strictScore: 84,
-    objectiveScore: 82,
-    note: '대화 순발력이 좋고 활동형 취향이 강함.',
-    selected: false,
-  ),
-  _AdminApplicantData(
-    initial: 'D',
-    name: '지원자 D',
-    gender: '남',
-    age: 28,
-    birth: '1998.06',
-    height: '172cm',
-    mbti: 'ESFP',
-    job: '서비스',
-    character: '스콘',
-    status: '인증완료',
-    score: 70,
-    strictScore: 76,
-    objectiveScore: 73,
-    note: '활발하지만 깊은 대화 지속성은 낮게 예측됨.',
-    selected: false,
-  ),
-  _AdminApplicantData(
-    initial: 'E',
-    name: '지원자 E',
-    gender: '여',
-    age: 28,
-    birth: '1998.04',
-    height: '167cm',
-    mbti: 'INFP',
-    job: '디자인/콘텐츠',
-    character: '티라미수',
-    status: '인증완료',
-    score: 89,
-    strictScore: 88,
-    objectiveScore: 91,
-    note: '차분하고 감성이 깊어요. 대화 깊이와 같은 직장군 회피 권장.',
-    selected: true,
-  ),
-  _AdminApplicantData(
-    initial: 'F',
-    name: '지원자 F',
-    gender: '여',
-    age: 27,
-    birth: '1999.03',
-    height: '165cm',
-    mbti: 'ENFP',
-    job: '교육',
-    character: '에그타르트',
-    status: '인증완료',
-    score: 84,
-    strictScore: 83,
-    objectiveScore: 86,
-    note: '밝은 호응과 취향 대화가 자연스럽게 이어짐.',
-    selected: true,
-  ),
-  _AdminApplicantData(
-    initial: 'G',
-    name: '지원자 G',
-    gender: '여',
-    age: 30,
-    birth: '1996.11',
-    height: '163cm',
-    mbti: 'ISFJ',
-    job: '의료/보건',
-    character: '마들렌',
-    status: '보류',
-    score: 77,
-    strictScore: 81,
-    objectiveScore: 79,
-    note: '배려형이지만 선호 시간대가 회차와 살짝 어긋남.',
-    selected: false,
-  ),
-  _AdminApplicantData(
-    initial: 'H',
-    name: '지원자 H',
-    gender: '여',
-    age: 31,
-    birth: '1995.08',
-    height: '168cm',
-    mbti: 'ENFJ',
-    job: '공공기관',
-    character: '푸딩',
-    status: '신규',
-    score: 66,
-    strictScore: 72,
-    objectiveScore: 70,
-    note: '기본 조건은 좋지만 응답 데이터가 아직 부족함.',
-    selected: false,
-  ),
-];
+  final String title;
+  final String body;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: AppColors.burgundy,
+      borderColor: AppColors.burgundy,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.82),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _MiniButton(label: actionLabel, onTap: onAction),
+        ],
+      ),
+    );
+  }
+}
+
+/// 신청자 상세 탭 안에서 데이터가 없을 때의 작은 빈 상태.
+class _PanelEmptyState extends StatelessWidget {
+  const _PanelEmptyState({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.mutedText, size: 28),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _StatData {
   const _StatData(this.label, this.value, this.caption);
@@ -2838,24 +1971,6 @@ class _StatData {
   final String label;
   final String value;
   final String caption;
-}
-
-class _NotificationData {
-  const _NotificationData({
-    required this.icon,
-    required this.category,
-    required this.title,
-    required this.body,
-    required this.time,
-    this.urgent = false,
-  });
-
-  final IconData icon;
-  final String category;
-  final String title;
-  final String body;
-  final String time;
-  final bool urgent;
 }
 
 TextStyle _displayStyle(BuildContext context, double size) {
@@ -3223,164 +2338,6 @@ class _AdminChip extends StatelessWidget {
   }
 }
 
-class _PanelNote extends StatelessWidget {
-  const _PanelNote({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: BoxDecoration(
-        color: AppColors.ivory,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _PrefMatchBox extends StatelessWidget {
-  const _PrefMatchBox({
-    required this.label,
-    required this.value,
-    required this.tone,
-  });
-
-  final String label;
-  final String value;
-
-  /// 0 = 충족(green), 1 = 부분 충족(neutral), 2 = 경고(orange)
-  final int tone;
-
-  @override
-  Widget build(BuildContext context) {
-    late final Color bg;
-    late final Color fg;
-    switch (tone) {
-      case 0:
-        bg = const Color(0xFFE3F1E7);
-        fg = AppColors.success;
-        break;
-      case 2:
-        bg = const Color(0xFFF8E7D6);
-        fg = AppColors.warning;
-        break;
-      default:
-        bg = AppColors.ivory;
-        fg = AppColors.mutedText;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFCF6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.mutedText,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              value,
-              style: TextStyle(
-                color: fg,
-                fontWeight: FontWeight.w700,
-                fontSize: 11.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AnswerBlock extends StatelessWidget {
-  const _AnswerBlock({
-    required this.title,
-    required this.chips,
-    this.warn = false,
-  });
-
-  final String title;
-  final List<String> chips;
-  final bool warn;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.mutedText,
-              fontWeight: FontWeight.w700,
-              fontSize: 11,
-            ),
-          ),
-          const SizedBox(height: 9),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final chip in chips)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: warn ? const Color(0xFFF8E7D6) : AppColors.ivory,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: warn ? const Color(0xFFE7C9AE) : AppColors.line,
-                    ),
-                  ),
-                  child: Text(
-                    chip,
-                    style: TextStyle(
-                      color: warn ? AppColors.warning : AppColors.cocoa,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _HorizontalChipStrip extends StatelessWidget {
   const _HorizontalChipStrip({required this.labels, this.selectedIndex});
 
@@ -3653,11 +2610,13 @@ class _SectionHeader extends StatelessWidget {
 
 class _AdminEventSummary extends StatelessWidget {
   const _AdminEventSummary({
+    required this.eyebrow,
     required this.title,
     required this.subtitle,
     required this.stats,
   });
 
+  final String eyebrow;
   final String title;
   final String subtitle;
   final List<_StatData> stats;
@@ -3687,9 +2646,9 @@ class _AdminEventSummary extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'D-23 · 다음 회차',
-                style: TextStyle(
+              Text(
+                eyebrow,
+                style: const TextStyle(
                   color: AppColors.butter,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -3811,102 +2770,6 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-class _DarkMetric extends StatelessWidget {
-  const _DarkMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.wine.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.butter,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentApplicantsCard extends StatelessWidget {
-  const _RecentApplicantsCard({
-    required this.onOpenAll,
-    required this.onOpenApplicant,
-  });
-
-  final VoidCallback onOpenAll;
-  final ValueChanged<_AdminApplicantData> onOpenApplicant;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(title: '최근 신청자', trailing: '전체 보기 ›'),
-          const SizedBox(height: 10),
-          for (final applicant in _adminApplicants.take(4)) ...[
-            InkWell(
-              onTap: () => onOpenApplicant(applicant),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    _ApplicantAvatar(applicant: applicant, size: 38),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${applicant.name} · ${applicant.age} · ${applicant.mbti}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.cocoa,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    _StatusPill(label: applicant.status),
-                  ],
-                ),
-              ),
-            ),
-            if (applicant != _adminApplicants.take(4).last)
-              const _DividerLine(),
-          ],
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: onOpenAll,
-              child: const Text('신청자 목록'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.label});
 
@@ -3999,94 +2862,6 @@ class _ApplicantStatusBadge extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.item, this.onTap});
-
-  final _NotificationData item;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      onTap: onTap,
-      color: Colors.white,
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: item.urgent ? AppColors.burgundy : AppColors.parchment,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              item.icon,
-              size: 20,
-              color: item.urgent ? AppColors.butter : AppColors.burgundy,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    Text(
-                      item.category,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.burgundy,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    if (item.urgent) const _AdminTag(label: '긴급'),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  item.title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.cocoa,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  item.body,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppColors.cocoa),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  item.time,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.mutedText),
-                ),
-              ],
-            ),
-          ),
-          if (onTap != null) ...[
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.burgundy,
-              size: 22,
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -4674,1096 +3449,6 @@ class _ScoreBox extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CandidateGroup extends StatelessWidget {
-  const _CandidateGroup({required this.title, required this.applicants});
-
-  final String title;
-  final List<_AdminApplicantData> applicants;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(title: title, trailing: '17명 · 1 선정'),
-        const SizedBox(height: 10),
-        for (final applicant in applicants) ...[
-          AppCard(
-            color: Colors.white,
-            borderColor: applicant.selected
-                ? AppColors.burgundy
-                : AppColors.line,
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                _ApplicantAvatar(applicant: applicant, size: 46),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${applicant.name} · ${applicant.age}-${applicant.height.replaceAll('cm', '')}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.cocoa,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          _CandidateCharacterPill(label: applicant.character),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              '${applicant.mbti} · 예상 평균 케미',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: AppColors.mutedText),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  '${applicant.score}',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.burgundy,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: applicant.selected
-                        ? AppColors.burgundy
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.line),
-                  ),
-                  child: applicant.selected
-                      ? const Icon(Icons.check, size: 15, color: Colors.white)
-                      : null,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-}
-
-class _CandidateCharacterPill extends StatelessWidget {
-  const _CandidateCharacterPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.parchment,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: AppColors.burgundy,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _ComboCandidateCard extends StatelessWidget {
-  const _ComboCandidateCard({
-    required this.applicant,
-    required this.score,
-    this.best = false,
-  });
-
-  final _AdminApplicantData applicant;
-  final int score;
-  final bool best;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _ApplicantAvatar(applicant: applicant, size: 48),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            applicant.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: AppColors.cocoa,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ),
-                        if (best) ...[
-                          const SizedBox(width: 6),
-                          const _AdminChip(label: 'BEST', compact: true),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${applicant.age} · ${applicant.mbti} · ${applicant.job}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.mutedText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '$score',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.burgundy,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.cream,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: const [
-                Expanded(
-                  child: _ComboMetric(label: '1:1 케미', value: '91'),
-                ),
-                Expanded(
-                  child: _ComboMetric(label: '대화 적합', value: '88'),
-                ),
-                Expanded(
-                  child: _ComboMetric(label: '조합 시너지', value: '대화 깊이 ↑'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _WideButton(label: '상세보기', muted: true, onTap: () {}),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _WideButton(
-                  label: best ? '최종 선정' : '추가하기',
-                  onTap: () {},
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PivotSelectedBadge extends StatelessWidget {
-  const _PivotSelectedBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      widthFactor: 1,
-      heightFactor: 1,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.burgundy,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          '선정됨',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            height: 1,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ComboMetric extends StatelessWidget {
-  const _ComboMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.mutedText,
-            fontSize: 10,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: AppColors.burgundy,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SmallMetric extends StatelessWidget {
-  const _SmallMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.mutedText,
-            fontSize: 10,
-          ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: AppColors.wine,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionPill extends StatelessWidget {
-  const _ActionPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.brandRed,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _ParticipantCard extends StatelessWidget {
-  const _ParticipantCard({
-    required this.applicant,
-    required this.paymentLabel,
-    required this.attendLabel,
-    this.waitingLabel,
-  });
-
-  final _AdminApplicantData applicant;
-  final String paymentLabel;
-  final String attendLabel;
-  final String? waitingLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _ApplicantAvatar(applicant: applicant, size: 44),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${applicant.name} · ${applicant.character}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.cocoa,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _SoftStatePill(label: paymentLabel),
-                        _SoftStatePill(
-                          label: attendLabel,
-                          warning: attendLabel.contains('미'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              _SquareIconButton(icon: Icons.edit_outlined, onTap: () {}),
-            ],
-          ),
-          if (waitingLabel != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.cream,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                waitingLabel!,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(color: AppColors.mutedText),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SoftStatePill extends StatelessWidget {
-  const _SoftStatePill({required this.label, this.warning = false});
-
-  final String label;
-  final bool warning;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: warning
-            ? AppColors.parchment
-            : AppColors.pistachio.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: warning ? AppColors.warning : AppColors.success,
-          fontWeight: FontWeight.w800,
-          fontSize: 10,
-        ),
-      ),
-    );
-  }
-}
-
-class _CharacterAssignRow extends StatelessWidget {
-  const _CharacterAssignRow({
-    required this.applicant,
-    required this.assigned,
-    required this.locked,
-  });
-
-  final _AdminApplicantData applicant;
-  final String assigned;
-  final bool locked;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          _ApplicantAvatar(applicant: applicant, size: 44),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  applicant.name,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.cocoa,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '기본:${applicant.character}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.mutedText),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-            decoration: BoxDecoration(
-              color: locked ? AppColors.burgundy : AppColors.blush,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${assigned.characters.first}  $assigned',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: locked ? Colors.white : AppColors.burgundy,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Icon(
-                  locked ? Icons.lock_outline : Icons.lock_open_outlined,
-                  size: 13,
-                  color: locked ? AppColors.butter : AppColors.burgundy,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          _SquareIconButton(icon: Icons.edit_outlined, onTap: () {}),
-        ],
-      ),
-    );
-  }
-}
-
-class _RoundStatusCard extends StatelessWidget {
-  const _RoundStatusCard({
-    required this.number,
-    required this.title,
-    required this.subtitle,
-    this.progress = 0,
-    this.active = false,
-  });
-
-  final String number;
-  final String title;
-  final String subtitle;
-  final double progress;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      borderColor: active ? AppColors.burgundy : AppColors.line,
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: active ? AppColors.burgundy : AppColors.parchment,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              number,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: active ? Colors.white : AppColors.burgundy,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.cocoa,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.mutedText),
-                ),
-                if (active) ...[
-                  const SizedBox(height: 9),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 4,
-                      color: AppColors.burgundy,
-                      backgroundColor: AppColors.line,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          _MiniButton(label: active ? '닫기' : '열기', onTap: () {}),
-        ],
-      ),
-    );
-  }
-}
-
-class _SeatingTable extends StatelessWidget {
-  const _SeatingTable({
-    required this.title,
-    required this.tableName,
-    required this.assignments,
-    this.flipped = false,
-    this.editing = false,
-    this.selectedSeatId,
-    this.onSeatTap,
-  });
-
-  final String title;
-  final String tableName;
-  final Map<String, _SeatAssignment> assignments;
-  final bool flipped;
-  final bool editing;
-  final String? selectedSeatId;
-  final ValueChanged<String>? onSeatTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final top = flipped ? const ['B1', 'B2'] : const ['A1', 'A2'];
-    final bottom = flipped ? const ['B3', 'B4'] : const ['A3', 'A4'];
-
-    Widget buildSeat(String seatId) {
-      final assignment = assignments[seatId]!;
-      return _SeatPerson(
-        initial: assignment.initial,
-        character: assignment.character,
-        name: assignment.name,
-        seat: seatId,
-        selected: editing && selectedSeatId == seatId,
-        onTap: editing ? () => onSeatTap?.call(seatId) : null,
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(title: title, trailing: '베이킹 · 4인'),
-        const SizedBox(height: 8),
-        AppCard(
-          color: Colors.white,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [for (final seatId in top) buildSeat(seatId)],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                height: 74,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.parchment,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.line),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.article_outlined,
-                      size: 18,
-                      color: AppColors.burgundy,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      tableName,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.burgundy,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [for (final seatId in bottom) buildSeat(seatId)],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SeatPerson extends StatelessWidget {
-  const _SeatPerson({
-    required this.initial,
-    required this.character,
-    required this.name,
-    required this.seat,
-    this.selected = false,
-    this.onTap,
-  });
-
-  final String initial;
-  final String character;
-  final String name;
-  final String seat;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: onTap != null,
-      selected: selected,
-      child: GestureDetector(
-        key: ValueKey('seat-$seat'),
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox(
-          width: 88,
-          child: Column(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? AppColors.burgundy
-                          : AppColors.parchment,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected ? AppColors.gold : AppColors.line,
-                        width: selected ? 2 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      initial,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: selected ? AppColors.butter : AppColors.burgundy,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: -4,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Text(
-                        seat,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.cocoa,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (selected)
-                    Positioned(
-                      right: -7,
-                      bottom: -5,
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: const BoxDecoration(
-                          color: AppColors.butter,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.edit_outlined,
-                          size: 11,
-                          color: AppColors.burgundy,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                character,
-                key: ValueKey('seat-$seat-character'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.cocoa,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              Text(
-                name,
-                key: ValueKey('seat-$seat-name'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.mutedText,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MatchPairCard extends StatelessWidget {
-  const _MatchPairCard({
-    required this.left,
-    required this.right,
-    required this.title,
-    required this.subtitle,
-    required this.score,
-  });
-
-  final String left;
-  final String right;
-  final String title;
-  final String subtitle;
-  final String score;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          _TinyAvatar(label: left),
-          const SizedBox(width: 5),
-          const Icon(
-            Icons.favorite_border_rounded,
-            color: AppColors.burgundy,
-            size: 15,
-          ),
-          const SizedBox(width: 5),
-          _TinyAvatar(label: right),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.cocoa,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.mutedText),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            score,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: AppColors.burgundy,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(width: 3),
-          Text(
-            '케미',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.mutedText,
-              fontSize: 9,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TinyAvatar extends StatelessWidget {
-  const _TinyAvatar({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      height: 38,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.parchment,
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: AppColors.burgundy,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class _OneWayRow extends StatelessWidget {
-  const _OneWayRow({required this.left, required this.right});
-
-  final String left;
-  final String right;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: AppCard(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                left,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.cocoa,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.mutedText),
-            Expanded(
-              child: Text(
-                right,
-                textAlign: TextAlign.right,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              '비공개',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.mutedText,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({
-    required this.initial,
-    required this.name,
-    required this.badge,
-    required this.text,
-    this.images = 0,
-    this.approved = false,
-  });
-
-  final String initial;
-  final String name;
-  final String badge;
-  final String text;
-  final int images;
-  final bool approved;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Colors.white,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _TinyAvatar(label: initial),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$name · 7기',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.cocoa,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '5/20 09:42 작성',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.mutedText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _SoftStatePill(label: badge, warning: !approved),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.cocoa,
-              height: 1.45,
-            ),
-          ),
-          if (images > 0) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                for (var i = 0; i < images; i++) ...[
-                  Container(
-                    width: 58,
-                    height: 58,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.parchment,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt_outlined,
-                      size: 18,
-                      color: AppColors.burgundy,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          if (approved)
-            Row(
-              children: [
-                const _SoftStatePill(label: '승인됨'),
-                const Spacer(),
-                _MiniButton(label: '대표 후기 지정', onTap: () {}),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: _WideButton(label: '숨김', muted: true, onTap: () {}),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _WideButton(label: '보류', muted: true, onTap: () {}),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _WideButton(label: '승인', onTap: () {}),
-                ),
-              ],
-            ),
         ],
       ),
     );

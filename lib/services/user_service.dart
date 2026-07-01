@@ -54,7 +54,7 @@ class UserService {
           : user.displayName,
       'photoURL': user.photoURL,
       'phone': user.phoneNumber,
-      'onboarding': {'completed': false},
+      'onboardingCompleted': false,
       'verification': {'photo': 'pending', 'job': 'pending'},
       'roles': ['user'],
       'isBanned': false,

@@ -46,14 +46,19 @@ class OnboardingService {
       answers[step.name] = values.toList(growable: false);
     });
 
-    final payload = <String, dynamic>{
-      'onboarding': {
-        'completed': true,
-        'baseCharacterId': baseCharacterId,
-        'answers': answers,
-        'preferences': preferences,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
+    // 설문 원본/선호값/기본 캐릭터는 users 문서에서 분리해
+    // users/{uid}/onboarding/current 서브컬렉션에 저장한다.
+    await FirebaseService.instance.onboardingDoc(uid).set({
+      'completed': true,
+      'baseCharacterId': baseCharacterId,
+      'answers': answers,
+      'preferences': preferences,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // users 문서에는 프로필 표시용 스칼라 필드와 완료 플래그만 남긴다.
+    final userPayload = <String, dynamic>{
+      'onboardingCompleted': true,
       if (genderKr.isNotEmpty) 'gender': genderKr == '남성' ? 'M' : 'F',
       if (region.isNotEmpty) 'region': region,
       if (mbti.isNotEmpty) 'mbti': mbti,
@@ -62,7 +67,7 @@ class OnboardingService {
 
     await FirebaseService.instance
         .userDoc(uid)
-        .set(payload, SetOptions(merge: true));
+        .set(userPayload, SetOptions(merge: true));
     return true;
   }
 

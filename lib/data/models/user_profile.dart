@@ -15,6 +15,8 @@ class UserProfile {
     this.provider,
     this.handle,
     this.kakaoVerified = false,
+    this.jobVerificationStatus,
+    this.photoVerificationStatus,
   });
 
   final String uid;
@@ -31,6 +33,22 @@ class UserProfile {
   final String? handle; // 앱에서 쓸 아이디
   final bool kakaoVerified;
 
+  /// verification.job: 'pending' | 'approved' | 'rejected' | null(미제출)
+  final String? jobVerificationStatus;
+
+  /// verification.photo: 'pending' | 'approved' | 'rejected' | null(미제출)
+  final String? photoVerificationStatus;
+
+  /// 실명(카카오) 인증 완료 여부.
+  /// 프로젝트에서 실명 인증 = 카카오 인증으로 취급한다.
+  bool get isRealNameVerified => kakaoVerified;
+
+  /// 직장 인증이 운영진 승인(approved)된 경우에만 true.
+  bool get isJobVerified => jobVerificationStatus == 'approved';
+
+  /// 직장 인증 자료 제출 후 운영진 승인 대기 중.
+  bool get isJobVerificationPending => jobVerificationStatus == 'pending';
+
   /// '남성' | '여성' | null
   String? get genderKr => switch (gender) {
     'M' => '남성',
@@ -40,9 +58,18 @@ class UserProfile {
 
   bool get isAdmin => roles.contains('admin');
 
-  factory UserProfile.fromMap(String uid, Map<String, dynamic> data) {
+  /// [data] 는 users/{uid} 문서, [onboardingData] 는
+  /// users/{uid}/onboarding/current 서브컬렉션 문서(있으면).
+  factory UserProfile.fromMap(
+    String uid,
+    Map<String, dynamic> data, {
+    Map<String, dynamic>? onboardingData,
+  }) {
+    // 하위 호환: 서브컬렉션 문서가 없으면 구(舊) 임베디드 맵을 사용.
     final onboarding =
-        (data['onboarding'] as Map<String, dynamic>?) ?? const {};
+        onboardingData ?? (data['onboarding'] as Map<String, dynamic>?) ?? const {};
+    final verification =
+        (data['verification'] as Map<String, dynamic>?) ?? const {};
     return UserProfile(
       uid: uid,
       displayName: (data['displayName'] as String?) ?? '케미오븐 사용자',
@@ -52,7 +79,9 @@ class UserProfile {
       mbti: data['mbti'] as String?,
       region: data['region'] as String?,
       baseCharacterId: onboarding['baseCharacterId'] as String?,
-      onboardingCompleted: (onboarding['completed'] as bool?) ?? false,
+      onboardingCompleted: (data['onboardingCompleted'] as bool?) ??
+          (onboarding['completed'] as bool?) ??
+          false,
       roles: (data['roles'] as List<dynamic>?)
               ?.map((role) => role.toString())
               .toList(growable: false) ??
@@ -60,6 +89,8 @@ class UserProfile {
       provider: data['provider'] as String?,
       handle: data['handle'] as String?,
       kakaoVerified: (data['kakaoVerified'] as bool?) ?? false,
+      jobVerificationStatus: verification['job'] as String?,
+      photoVerificationStatus: verification['photo'] as String?,
     );
   }
 }
