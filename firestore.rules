@@ -80,15 +80,17 @@ service cloud.firestore {
       }
     }
 
-    // 쌍방 매칭(실명/연락처 공개 단위) — 당사자만 읽기, 쓰기는 Functions
+    // 쌍방 매칭(실명/연락처 공개 단위) — 당사자 + 운영자 읽기, 쓰기는 Functions/운영자
     match /matches/{matchId} {
-      allow read: if isSignedIn() && request.auth.uid in resource.data.pair;
+      allow read: if (isSignedIn() && request.auth.uid in resource.data.pair)
+        || isAdmin();
       allow write: if isAdmin();
     }
 
-    // 개인 케미 리포트 — 본인만 읽기, 쓰기는 Functions
+    // 개인 케미 리포트 — 본인 + 운영자 읽기, 쓰기는 Functions/운영자
     match /reports/{reportId} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read: if (isSignedIn() && resource.data.uid == request.auth.uid)
+        || isAdmin();
       allow write: if isAdmin();
     }
 

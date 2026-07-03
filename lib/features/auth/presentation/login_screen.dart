@@ -303,6 +303,8 @@ class _LoginScreenState extends State<LoginScreen> {
       appState.sessionsController.start();
       // 앱 접속 시 FCM 토큰을 users/{uid}.fcmToken 에 기록
       unawaited(FcmService.instance.registerForCurrentUser());
+      // 신청해 둔 회차가 있으면 오브닝 플로우를 라이브 모드로 연결
+      unawaited(appState.connectLiveFlow());
 
       _showInfo('$provider 로그인 완료');
       _finish();

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
 import '../core/widgets/status_badge.dart';
+import '../data/models/chemistry_session.dart';
 import '../data/models/demo_models.dart';
 import '../data/repositories/application_repository.dart';
 import '../features/classes/presentation/classes_screen.dart';
@@ -143,6 +144,21 @@ class _MainTabScreenState extends State<MainTabScreen> {
               gender: profile?.gender,
               baseCharacterId: profile?.baseCharacterId,
             )
+            .then((_) {
+              // 신청 완료 → 오브닝 플로우를 이 회차와 라이브로 동기화
+              ChemistrySession? session;
+              for (final item in appState.sessionsController.sessions) {
+                if (item.id == demoClass.id) {
+                  session = item;
+                  break;
+                }
+              }
+              appState.flowProvider.attachLive(
+                sessionId: demoClass.id,
+                uid: uid,
+                session: session,
+              );
+            })
             .catchError((Object error) {
               debugPrint('[apply] 신청 실패: $error');
             }),

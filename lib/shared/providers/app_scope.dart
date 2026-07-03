@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../data/models/demo_models.dart';
+import '../../data/repositories/application_repository.dart';
 import '../../data/repositories/chemistry_repository.dart';
 import '../../data/repositories/mock_chemistry_repository.dart';
 import '../../services/fcm_service.dart';
@@ -63,6 +67,70 @@ class AppState extends ChangeNotifier {
     currentUserController.load();
     sessionsController.start();
     FcmService.instance.registerForCurrentUser();
+    unawaited(connectLiveFlow());
+  }
+
+  /// 로그인 사용자가 신청해 둔 회차를 찾아 오브닝 플로우를 라이브 모드로 연결
+  /// (sessions/{id}/applications/{uid} 존재 여부로 판단).
+  Future<void> connectLiveFlow() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || flowProvider.isLive) {
+      return;
+    }
+
+    // 회차 목록이 로드될 때까지 대기 (최대 8초).
+    if (!sessionsController.isLoaded) {
+      final completer = Completer<void>();
+      void onLoaded() {
+        if (sessionsController.isLoaded && !completer.isCompleted) {
+          completer.complete();
+        }
+      }
+
+      sessionsController.addListener(onLoaded);
+      try {
+        await completer.future.timeout(const Duration(seconds: 8));
+      } on TimeoutException {
+        return; // 오프라인 등 — 다음 앱 시작/로그인 때 재시도.
+      } finally {
+        sessionsController.removeListener(onLoaded);
+      }
+    }
+
+    // 진행 중 > 확정 > 선정 중 > 모집 중 순으로, 같은 상태면 최신 회차부터.
+    const priority = ['ongoing', 'confirmed', 'selecting', 'recruiting'];
+    final candidates = sessionsController.sessions
+        .where((session) => priority.contains(session.status))
+        .toList()
+      ..sort((a, b) {
+        final byStatus =
+            priority.indexOf(a.status).compareTo(priority.indexOf(b.status));
+        if (byStatus != 0) {
+          return byStatus;
+        }
+        final aTime = a.createdAt ?? DateTime(0);
+        final bTime = b.createdAt ?? DateTime(0);
+        return bTime.compareTo(aTime);
+      });
+
+    for (final session in candidates) {
+      try {
+        final applied = await ApplicationRepository.instance.hasApplied(
+          session.id,
+          user.uid,
+        );
+        if (applied) {
+          flowProvider.attachLive(
+            sessionId: session.id,
+            uid: user.uid,
+            session: session,
+          );
+          return;
+        }
+      } catch (error) {
+        debugPrint('[flow] 신청 회차 확인 실패(${session.id}): $error');
+      }
+    }
   }
 
   final ChemistryRepository repository;

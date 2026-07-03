@@ -585,7 +585,8 @@ class _ReportCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: flow.submitReview,
+              onPressed: () =>
+                  flow.submitReview(text: reviewController.text.trim()),
               icon: const Icon(Icons.rate_review),
               label: const Text('후기 설문 제출'),
             ),

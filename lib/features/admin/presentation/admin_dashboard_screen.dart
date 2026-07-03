@@ -4,7 +4,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../data/models/chemistry_session.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../data/models/event_flow_models.dart';
+import '../../../data/repositories/admin_event_repository.dart';
 import '../../../data/repositories/application_repository.dart';
+import '../../../data/repositories/event_flow_repository.dart';
 import '../../../data/repositories/session_repository.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/functions_service.dart';
@@ -42,7 +45,8 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  _AdminScreen _screen = _AdminScreen.login;
+  // 운영자 모드 진입은 이미 profile.isAdmin 으로 게이팅되므로 바로 대시보드로 시작.
+  _AdminScreen _screen = _AdminScreen.dashboard;
   _AdminApplicantData _selectedApplicant = _emptyApplicant;
   int _applicantStatusFilter = 0;
   int _applicantSort = 0;
@@ -68,6 +72,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _writingStatus = false;
   bool _scoringSession = false;
   bool _uploadingCover = false;
+
+  // 매칭 탭(당일 운영) 상태
+  bool _confirmingParticipants = false;
+  bool _reassigningNicknames = false;
+  bool _autoSeatingBusy = false;
+  bool _creatingMatches = false;
+  bool _generatingReports = false;
+  // FutureBuilder 강제 새로고침용 틱
+  int _adminRefreshTick = 0;
+  // 자리 수동 편집: 첫 번째로 선택한 좌석 (테이블/좌석 번호)
+  String? _seatPickTable;
+  int? _seatPickPos;
+
+  AdminEventRepository get _adminRepo => AdminEventRepository.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -315,6 +333,173 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       'rejected' => '반려됨',
       _ => '미제출',
     };
+  }
+
+  // ── 당일 운영(매칭 탭) Firestore 액션 ─────────────────────────
+
+  /// 공통 실행기: busy 플래그 + 스낵바 + 화면 새로고침.
+  Future<void> _runAdminAction({
+    required bool busy,
+    required void Function(bool value) setBusy,
+    required Future<String> Function() action,
+  }) async {
+    final sessionId = _selectedSessionId;
+    if (busy) return;
+    if (sessionId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('회차 탭에서 운영할 회차를 먼저 선택해주세요')),
+      );
+      return;
+    }
+    setState(() => setBusy(true));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final message = await action();
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      setState(() => _adminRefreshTick += 1);
+    } catch (e) {
+      debugPrint('[admin-action] $e');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('처리에 실패했어요. 잠시 후 다시 시도해 주세요')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => setBusy(false));
+      }
+    }
+  }
+
+  Future<void> _confirmParticipants() => _runAdminAction(
+        busy: _confirmingParticipants,
+        setBusy: (value) => _confirmingParticipants = value,
+        action: () async {
+          final count =
+              await _adminRepo.confirmParticipants(_selectedSessionId!);
+          return count > 0
+              ? '$count명을 참가자로 확정하고 닉네임을 배정했어요'
+              : '새로 확정할 신청자가 없어요 (기존 참가자는 유지)';
+        },
+      );
+
+  Future<void> _reassignNicknames() => _runAdminAction(
+        busy: _reassigningNicknames,
+        setBusy: (value) => _reassigningNicknames = value,
+        action: () async {
+          final count =
+              await _adminRepo.reassignNicknames(_selectedSessionId!);
+          return count > 0 ? '$count명의 닉네임을 다시 배정했어요' : '참가자가 없어요';
+        },
+      );
+
+  Future<void> _setEventStage(String stage) async {
+    final sessionId = _selectedSessionId;
+    if (sessionId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('회차 탭에서 운영할 회차를 먼저 선택해주세요')),
+      );
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _adminRepo.setEventStage(sessionId, stage);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '단계 변경: ${AdminEventRepository.eventStageLabels[stage] ?? stage}'
+            ' — 참가자 화면이 실시간 이동합니다',
+          ),
+        ),
+      );
+      setState(() => _adminRefreshTick += 1);
+    } catch (e) {
+      debugPrint('[event-stage] $e');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('단계 변경에 실패했어요')),
+      );
+    }
+  }
+
+  Future<void> _runAutoSeating() => _runAdminAction(
+        busy: _autoSeatingBusy,
+        setBusy: (value) => _autoSeatingBusy = value,
+        action: () async {
+          final tables =
+              await _adminRepo.autoAssignSeating(_selectedSessionId!);
+          return tables > 0
+              ? '$tables개 테이블 자리배치를 완료했어요'
+              : '배치할 참가자가 부족해요 (2명 이상 필요)';
+        },
+      );
+
+  Future<void> _createMatches() => _runAdminAction(
+        busy: _creatingMatches,
+        setBusy: (value) => _creatingMatches = value,
+        action: () async {
+          final count = await _adminRepo.createMatches(_selectedSessionId!);
+          return count > 0
+              ? '쌍방 매칭 $count건을 생성했어요 (참가자에게 편지 공개)'
+              : '새로 생성할 쌍방 매칭이 없어요';
+        },
+      );
+
+  Future<void> _generateReports() => _runAdminAction(
+        busy: _generatingReports,
+        setBusy: (value) => _generatingReports = value,
+        action: () async {
+          final count =
+              await _adminRepo.generateBasicReports(_selectedSessionId!);
+          return count > 0
+              ? '케미 리포트 $count건을 생성했어요'
+              : '새로 생성할 리포트가 없어요';
+        },
+      );
+
+  /// 자리 수동 편집: 좌석 두 개를 차례로 탭하면 교체.
+  Future<void> _handleSeatTap(String tableId, int seatPos) async {
+    final sessionId = _selectedSessionId;
+    if (sessionId == null) return;
+    final pickedTable = _seatPickTable;
+    final pickedPos = _seatPickPos;
+    if (pickedTable == null || pickedPos == null) {
+      setState(() {
+        _seatPickTable = tableId;
+        _seatPickPos = seatPos;
+      });
+      return;
+    }
+    if (pickedTable == tableId && pickedPos == seatPos) {
+      setState(() {
+        _seatPickTable = null;
+        _seatPickPos = null;
+      });
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _adminRepo.swapSeats(
+        sessionId,
+        tableIdA: pickedTable,
+        seatPosA: pickedPos,
+        tableIdB: tableId,
+        seatPosB: seatPos,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(content: Text('두 좌석을 교체했어요')));
+    } catch (e) {
+      debugPrint('[seat-swap] $e');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('좌석 교체에 실패했어요')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _seatPickTable = null;
+          _seatPickPos = null;
+        });
+      }
+    }
   }
 
   @override
@@ -650,6 +835,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _AdminBrandBar(
           showAdmin: true,
+          secondaryActionIcon: Icons.people_alt_outlined,
+          onSecondaryAction: () =>
+              appState.modeController.setMode(DemoMode.user),
           actionIcon: Icons.notifications_none_rounded,
           onAction: () => _go(_AdminScreen.notifications),
         ),
@@ -1573,66 +1761,196 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildSelectionPool(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '인원 선정',
-          subtitle: '케미 기반 추천',
+          subtitle: '케미 점수 기반',
           onBack: () => _go(_AdminScreen.sessions),
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.auto_awesome_outlined,
-          title: '아직 선정 결과가 없어요',
-          body:
-              '회차 상세에서 AI 점수 계산을 실행하면 후보 케미 점수와 추천 결과가 여기에 표시됩니다.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          FutureBuilder<List<Map<String, dynamic>>>(
+            key: ValueKey('pool-$_adminRefreshTick'),
+            future: ApplicationRepository.instance
+                .fetchSessionApplicants(sessionId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const _PanelEmptyState(
+                  icon: Icons.hourglass_top_rounded,
+                  message: '신청자를 불러오는 중...',
+                );
+              }
+              final applicants =
+                  (snapshot.data ?? const <Map<String, dynamic>>[])
+                      .map(_mapApplicant)
+                      .toList()
+                    ..sort((a, b) => b.score.compareTo(a.score));
+              if (applicants.isEmpty) {
+                return const _ScreenEmptyState(
+                  icon: Icons.auto_awesome_outlined,
+                  title: '신청자가 없어요',
+                  body: '신청이 들어오고 회차 상세에서 AI 점수 계산을 실행하면 점수순 추천이 표시됩니다.',
+                );
+              }
+              return Column(
+                children: [
+                  for (final applicant in applicants) ...[
+                    AppCard(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          _ApplicantAvatar(applicant: applicant, size: 40),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${applicant.name} · ${applicant.gender}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '케미 ${applicant.score}점 · ${applicant.status}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: AppColors.mutedText),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (applicant.selected)
+                            const _AdminTag(label: '선정')
+                          else
+                            _MiniButton(
+                              label: '선정',
+                              onTap: () =>
+                                  _writeApplicantStatus(applicant, 'selected'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _WideButton(
+            label: _confirmingParticipants
+                ? '확정 중...'
+                : '선정 인원 → 참가자 확정 + 닉네임 배정',
+            onTap: () async {
+              await _confirmParticipants();
+              if (mounted) _go(_AdminScreen.participants);
+            },
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildChemistryCombo(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '케미 조합',
-          subtitle: '1:1 케미 점수 기반',
+          subtitle: '중간 선택 · 케미 점수 기반 페어',
           onBack: () => _go(_AdminScreen.selectionPool),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.favorite_border_rounded,
-          title: '케미 조합 데이터가 없어요',
-          body: '인원 선정과 점수 계산이 끝나면 1:1 케미 조합 추천이 여기에 표시됩니다.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          Text(
+            '페어(케미 조합)는 자리배치와 함께 생성돼요. 중간 선택 쌍방이 1순위, 나머지는 케미 점수순으로 짝지어집니다.',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.mutedText, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          _seatingTables(context, sessionId, editable: false),
+          const SizedBox(height: 12),
+          _WideButton(
+            label: _autoSeatingBusy ? '생성 중...' : '케미 조합 · 자리배치 자동 생성',
+            onTap: _runAutoSeating,
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildParticipants(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '참가자 관리',
-          subtitle: '확정 참가자',
+          subtitle: '확정 참가자 · 회차 닉네임',
           onBack: () => _go(_AdminScreen.chemistryCombo),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.groups_outlined,
-          title: '확정 참가자가 없어요',
-          body: '인원 선정과 입금 확인이 끝나면 확정 참가자 명단이 여기에 표시됩니다.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          StreamBuilder<List<EventParticipant>>(
+            stream: EventFlowRepository.instance.watchParticipants(sessionId),
+            builder: (context, snapshot) {
+              final participants = snapshot.data ?? const <EventParticipant>[];
+              if (participants.isEmpty) {
+                return const _ScreenEmptyState(
+                  icon: Icons.groups_outlined,
+                  title: '확정 참가자가 없어요',
+                  body: '아래 버튼으로 선정/입금 완료 신청자를 참가자로 확정하면 명단이 표시됩니다.',
+                );
+              }
+              return Column(
+                children: [
+                  for (final participant in participants) ...[
+                    _participantTile(context, participant),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _WideButton(
+            label: _confirmingParticipants
+                ? '확정 중...'
+                : '선정 인원 → 참가자 확정 + 닉네임 배정',
+            onTap: _confirmParticipants,
+          ),
+          const SizedBox(height: 8),
+          _WideButton(
+            label: '캐릭터(닉네임) 배정 관리',
+            muted: true,
+            onTap: () => _go(_AdminScreen.characterAssign),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildCharacterAssign(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1643,93 +1961,312 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.auto_awesome_outlined,
-          title: '배정할 참가자가 없어요',
-          body: '확정 참가자가 정해지면 회차 전용 캐릭터(닉네임) 배정을 여기에서 진행합니다.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          StreamBuilder<List<EventParticipant>>(
+            stream: EventFlowRepository.instance.watchParticipants(sessionId),
+            builder: (context, snapshot) {
+              final participants = snapshot.data ?? const <EventParticipant>[];
+              if (participants.isEmpty) {
+                return const _ScreenEmptyState(
+                  icon: Icons.auto_awesome_outlined,
+                  title: '배정할 참가자가 없어요',
+                  body: '참가자 관리에서 확정을 진행하면 회차 전용 닉네임 배정을 여기에서 관리합니다.',
+                );
+              }
+              return Column(
+                children: [
+                  for (final participant in participants) ...[
+                    _participantTile(context, participant),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _WideButton(
+            label: _reassigningNicknames ? '재배정 중...' : '닉네임 전체 재배정 (셔플)',
+            onTap: _reassignNicknames,
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildVoting(BuildContext context) {
+    final sessionId = _selectedSessionId;
+    final appState = AppScope.of(context);
+    String? currentStage;
+    if (sessionId != null) {
+      for (final session in appState.sessionsController.sessions) {
+        if (session.id == sessionId) {
+          currentStage = session.eventStage;
+          break;
+        }
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
-          title: '투표 관리',
-          subtitle: '회차 진행 라운드',
+          title: '당일 진행 관리',
+          subtitle: '단계 제어 · 선택 제출 현황',
           onBack: () => _go(_AdminScreen.characterAssign),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.how_to_vote_outlined,
-          title: '진행 중인 투표 라운드가 없어요',
-          body: '회차 당일 투표 라운드가 시작되면 응답 현황과 미응답자가 여기에 실시간으로 표시됩니다.',
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(
-                label: '자리배치 보기',
-                muted: true,
-                onTap: () => _go(_AdminScreen.seatingAuto),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          _SectionHeader(
+            title: '진행 단계',
+            trailing: currentStage == null
+                ? '시작 전'
+                : (AdminEventRepository.eventStageLabels[currentStage] ??
+                    currentStage),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final stage in AdminEventRepository.eventStages)
+                _AdminChip(
+                  label:
+                      AdminEventRepository.eventStageLabels[stage] ?? stage,
+                  selected: stage == currentStage,
+                  onTap: () => _setEventStage(stage),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '단계를 누르면 모든 참가자 화면이 해당 단계로 실시간 이동해요 (앞 단계로는 이동하지 않음).',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.mutedText, height: 1.5),
+          ),
+          const SizedBox(height: 16),
+          const _SectionHeader(title: '선택 제출 현황', trailing: '첫인상 · 중간 · 최종'),
+          const SizedBox(height: 10),
+          FutureBuilder<List<Map<String, dynamic>>>(
+            key: ValueKey('choices-$_adminRefreshTick'),
+            future: _adminRepo.fetchChoiceStatus(sessionId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const _PanelEmptyState(
+                  icon: Icons.hourglass_top_rounded,
+                  message: '제출 현황을 불러오는 중...',
+                );
+              }
+              final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+              if (rows.isEmpty) {
+                return const _PanelEmptyState(
+                  icon: Icons.how_to_vote_outlined,
+                  message: '확정 참가자가 없어요. 참가자 확정 후 현황이 표시됩니다.',
+                );
+              }
+              return AppCard(
+                color: Colors.white,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    for (final row in rows) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (row['participant'] as EventParticipant)
+                                  .nickname,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          _choiceDot(row['hasFirst'] as bool),
+                          const SizedBox(width: 10),
+                          _choiceDot(row['hasMid'] as bool),
+                          const SizedBox(width: 10),
+                          _choiceDot(row['hasFinal'] as bool),
+                        ],
+                      ),
+                      if (row != rows.last)
+                        const Divider(height: 16, color: AppColors.line),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _MiniButton(
+            label: '현황 새로고침',
+            onTap: () => setState(() => _adminRefreshTick += 1),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _WideButton(
+                  label: '자리배치 보기',
+                  muted: true,
+                  onTap: () => _go(_AdminScreen.seatingAuto),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '매칭 결과',
-                onTap: () => _go(_AdminScreen.matchResult),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _WideButton(
+                  label: '매칭 결과',
+                  onTap: () => _go(_AdminScreen.matchResult),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildSeatingAuto(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '자리배치',
-          subtitle: '자동 추천',
+          subtitle: '자동 추천 (중간 선택 쌍방 우선)',
           onBack: () => _go(_AdminScreen.voting),
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.chair_alt_outlined,
-          title: '자리배치안이 아직 없어요',
-          body: '참가자 확정과 케미 점수 계산이 끝나면 케미·성비 균형 기반 자리배치가 여기에 추천됩니다.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          _seatingTables(context, sessionId, editable: false),
+          const SizedBox(height: 12),
+          _WideButton(
+            label: _autoSeatingBusy ? '배치 중...' : '자동 자리배치 실행 (기존 배치 대체)',
+            onTap: _runAutoSeating,
+          ),
+          const SizedBox(height: 8),
+          _WideButton(
+            label: '자리 수동 편집',
+            muted: true,
+            onTap: () => _go(_AdminScreen.seatingEdit),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildSeatingEdit(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '자리 수동 편집',
-          subtitle: '자리 교체',
+          subtitle: '좌석 두 개를 차례로 탭하면 교체',
           onBack: () => _go(_AdminScreen.seatingAuto),
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.edit_outlined,
-          title: '편집할 자리배치가 없어요',
-          body: '자동 자리배치안이 생성되면 여기에서 자리를 직접 교체할 수 있어요.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          if (_seatPickTable != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                '선택됨: $_seatPickTable ${(_seatPickPos ?? 0) + 1}번 좌석 — 교체할 좌석을 탭하세요',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.burgundy,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          _seatingTables(context, sessionId, editable: true),
+        ],
       ],
     );
   }
 
+  /// 테이블 좌석도 목록 (seating 컬렉션 실시간).
+  /// [editable] 이면 좌석 탭 → 교체 모드.
+  Widget _seatingTables(
+    BuildContext context,
+    String sessionId, {
+    required bool editable,
+  }) {
+    return StreamBuilder<List<SeatingTable>>(
+      stream: EventFlowRepository.instance.watchSeating(sessionId),
+      builder: (context, snapshot) {
+        final tables = snapshot.data ?? const <SeatingTable>[];
+        if (tables.isEmpty) {
+          return const _ScreenEmptyState(
+            icon: Icons.chair_alt_outlined,
+            title: '자리배치안이 아직 없어요',
+            body: '참가자 확정 후 자동 자리배치를 실행하면 테이블 좌석도가 여기에 표시됩니다.',
+          );
+        }
+        return Column(
+          children: [
+            for (final table in tables) ...[
+              AppCard(
+                color: Colors.white,
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionHeader(
+                      title: table.tableId,
+                      trailing: '${table.seats.length}명',
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final seat in table.seats)
+                          _AdminChip(
+                            label:
+                                '${(seat.seatPos ?? 0) + 1}. ${seat.nickname}',
+                            selected: editable &&
+                                _seatPickTable == table.tableId &&
+                                _seatPickPos == seat.seatPos,
+                            onTap: editable && seat.seatPos != null
+                                ? () => _handleSeatTap(
+                                      table.tableId,
+                                      seat.seatPos!,
+                                    )
+                                : null,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '1·2번 = 옆자리 페어, 3·4번 = 맞은편 페어',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.mutedText, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildMatchResult(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1740,47 +2277,286 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.favorite_border_rounded,
-          title: '아직 매칭 결과가 없어요',
-          body: '최종 선택 라운드가 종료되면 상호 매칭·단방향 선택 결과가 여기에 집계됩니다.',
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(label: '요약공유', muted: true, onTap: () {}),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: '케미 리포트 발송',
-                onTap: () => _openReviewsFrom(_AdminScreen.matchResult),
-              ),
-            ),
-          ],
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else ...[
+          FutureBuilder<Map<String, dynamic>>(
+            key: ValueKey('agg-$_adminRefreshTick'),
+            future: _adminRepo.aggregateFinalChoices(sessionId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const _PanelEmptyState(
+                  icon: Icons.hourglass_top_rounded,
+                  message: '최종 선택을 집계하는 중...',
+                );
+              }
+              final aggregate =
+                  snapshot.data ?? const <String, dynamic>{};
+              final mutual =
+                  (aggregate['mutual'] as List<List<String>>?) ?? const [];
+              final oneWay =
+                  (aggregate['oneWay'] as List<Map<String, String>>?) ??
+                      const [];
+              final nicknames =
+                  (aggregate['nicknames'] as Map<String, String>?) ??
+                      const {};
+              String nick(String? uid) =>
+                  uid == null ? '?' : (nicknames[uid] ?? uid);
+
+              if (mutual.isEmpty && oneWay.isEmpty) {
+                return const _ScreenEmptyState(
+                  icon: Icons.favorite_border_rounded,
+                  title: '아직 집계할 최종 선택이 없어요',
+                  body: '참가자들이 최종 선택을 제출하면 상호 매칭·단방향 결과가 여기에 표시됩니다.',
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionHeader(title: '상호 매칭', trailing: '${mutual.length}쌍'),
+                  const SizedBox(height: 8),
+                  if (mutual.isEmpty)
+                    const _PanelEmptyState(
+                      icon: Icons.favorite_border_rounded,
+                      message: '상호 매칭이 아직 없어요',
+                    )
+                  else
+                    for (final pair in mutual) ...[
+                      AppCard(
+                        color: Colors.white,
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.favorite,
+                              color: AppColors.brandRed,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '${nick(pair[0])} ↔ ${nick(pair[1])}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  const SizedBox(height: 8),
+                  _SectionHeader(title: '단방향 선택', trailing: '${oneWay.length}건'),
+                  const SizedBox(height: 8),
+                  for (final entry in oneWay) ...[
+                    AppCard(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: AppColors.mutedText,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '${nick(entry['from'])} → ${nick(entry['to'])}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _WideButton(
+            label: _creatingMatches
+                ? '생성 중...'
+                : '쌍방 매칭 확정 · 생성 (참가자에게 편지 공개)',
+            onTap: _createMatches,
+          ),
+          const SizedBox(height: 8),
+          _WideButton(
+            label: _generatingReports ? '생성 중...' : '케미 리포트 생성 (전 참가자)',
+            muted: true,
+            onTap: _generateReports,
+          ),
+          const SizedBox(height: 8),
+          _WideButton(
+            label: '후기 관리',
+            muted: true,
+            onTap: () => _openReviewsFrom(_AdminScreen.matchResult),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildReviews(BuildContext context) {
+    final sessionId = _selectedSessionId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
           title: '후기 관리',
-          subtitle: '후기 승인·노출 관리',
+          subtitle: '회차 후기',
           onBack: () => _go(_reviewsBackTarget),
           actionIcon: Icons.notifications_none_rounded,
         ),
         const SizedBox(height: 14),
-        const _ScreenEmptyState(
-          icon: Icons.rate_review_outlined,
-          title: '검토할 후기가 없어요',
-          body: '참가자가 후기를 남기면 승인 대기 목록이 여기에 표시됩니다.',
-        ),
+        if (sessionId == null)
+          _sessionRequiredNotice()
+        else
+          FutureBuilder<List<Map<String, dynamic>>>(
+            key: ValueKey('reviews-$_adminRefreshTick'),
+            future: _adminRepo.fetchReviews(sessionId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const _PanelEmptyState(
+                  icon: Icons.hourglass_top_rounded,
+                  message: '후기를 불러오는 중...',
+                );
+              }
+              final reviews = snapshot.data ?? const <Map<String, dynamic>>[];
+              if (reviews.isEmpty) {
+                return const _ScreenEmptyState(
+                  icon: Icons.rate_review_outlined,
+                  title: '검토할 후기가 없어요',
+                  body: '참가자가 후기를 남기면 여기에 표시됩니다.',
+                );
+              }
+              return Column(
+                children: [
+                  for (final review in reviews) ...[
+                    AppCard(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              for (var star = 0;
+                                  star < ((review['stars'] as num?)?.toInt() ?? 0);
+                                  star++)
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 16,
+                                  color: AppColors.gold,
+                                ),
+                              const SizedBox(width: 8),
+                              _AdminTag(
+                                label:
+                                    (review['type'] as String?) ?? '참여 후기',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            ((review['text'] as String?) ?? '').isEmpty
+                                ? '(내용 없음)'
+                                : (review['text'] as String),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(height: 1.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            },
+          ),
       ],
+    );
+  }
+
+  // ── 매칭 탭 공용 위젯 ─────────────────────────────────────────
+
+  Widget _sessionRequiredNotice() {
+    return _DashboardEmptyState(
+      title: '회차를 먼저 선택해주세요',
+      body: '회차 탭에서 운영할 회차를 선택하면 여기에서 당일 진행을 관리할 수 있어요.',
+      actionLabel: '회차 목록으로',
+      onAction: () => _go(_AdminScreen.sessions),
+    );
+  }
+
+  Widget _participantTile(BuildContext context, EventParticipant participant) {
+    return AppCard(
+      color: Colors.white,
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.blush.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              participant.displayMark,
+              style: const TextStyle(
+                color: AppColors.burgundy,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  participant.nickname,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    participant.gender == 'M' ? '남' : '여',
+                    if (participant.tableId != null) participant.tableId!,
+                    if (participant.chemistryScore != null)
+                      '케미 ${participant.chemistryScore}점',
+                  ].join(' · '),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedText),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _choiceDot(bool done) {
+    return Icon(
+      done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+      size: 16,
+      color: done ? AppColors.success : AppColors.line,
     );
   }
 }
@@ -1995,12 +2771,14 @@ class _AdminBrandBar extends StatelessWidget {
     this.actionIcon,
     this.secondaryActionIcon,
     this.onAction,
+    this.onSecondaryAction,
   });
 
   final bool showAdmin;
   final IconData? actionIcon;
   final IconData? secondaryActionIcon;
   final VoidCallback? onAction;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -2019,7 +2797,10 @@ class _AdminBrandBar extends StatelessWidget {
         ),
         const Spacer(),
         if (secondaryActionIcon != null) ...[
-          _SquareIconButton(icon: secondaryActionIcon!, onTap: () {}),
+          _SquareIconButton(
+            icon: secondaryActionIcon!,
+            onTap: onSecondaryAction ?? () {},
+          ),
           const SizedBox(width: 8),
         ],
         if (actionIcon != null)

@@ -19,6 +19,7 @@ class ChemistrySession {
     this.bakingItems = const [],
     this.keyVisualUrl,
     this.status = 'recruiting',
+    this.eventStage,
     this.notice = '',
     this.applicationCount = 0,
     this.createdBy,
@@ -38,6 +39,8 @@ class ChemistrySession {
   final List<String> bakingItems;
   final String? keyVisualUrl;
   final String status; // draft | recruiting | selecting | confirmed | ongoing | closed
+  /// 당일 진행 단계 (DemoFlowStep enum 이름). 운영자가 변경하면 참가자 화면 동기화.
+  final String? eventStage;
   final String notice;
   final int applicationCount;
   final String? createdBy;
@@ -82,6 +85,7 @@ class ChemistrySession {
       bakingItems: _stringList(data['bakingItems']),
       keyVisualUrl: data['keyVisualUrl'] as String?,
       status: (data['status'] as String?) ?? 'recruiting',
+      eventStage: data['eventStage'] as String?,
       notice: (data['notice'] as String?) ?? '',
       applicationCount: (data['applicationCount'] as num?)?.toInt() ?? 0,
       createdBy: data['createdBy'] as String?,

@@ -5,7 +5,6 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../data/models/demo_models.dart';
 import '../../../data/models/user_profile.dart';
-import '../../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/my_page_summary_service.dart';
@@ -27,12 +26,6 @@ class MyPageScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
     final session = appState.sessionController;
-    final mode = appState.modeController.mode;
-
-    if (mode == DemoMode.admin) {
-      return const SafeArea(child: AdminDashboardScreen());
-    }
-
     return SafeArea(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -105,13 +98,8 @@ class MyPageScreen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const Scaffold(
-                                body: SafeArea(child: AdminDashboardScreen()),
-                              ),
-                            ),
-                          ),
+                          onPressed: () => appState.modeController
+                              .setMode(DemoMode.admin),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.burgundy,
                             foregroundColor: Colors.white,

@@ -9,8 +9,8 @@ import '../../report/presentation/chemistry_report_screen.dart';
 class ReviewGateScreen extends StatefulWidget {
   const ReviewGateScreen({this.onReviewSubmitted, super.key});
 
-  /// 후기 제출 시 호출 (데모 플로우 진행용).
-  final VoidCallback? onReviewSubmitted;
+  /// 후기 제출 시 호출. 별점/종류/내용을 전달한다 (라이브 모드에서 서버 저장용).
+  final void Function(int stars, String type, String text)? onReviewSubmitted;
 
   @override
   State<ReviewGateScreen> createState() => _ReviewGateScreenState();
@@ -149,7 +149,11 @@ class _ReviewGateScreenState extends State<ReviewGateScreen> {
   }
 
   void _submit() {
-    widget.onReviewSubmitted?.call();
+    widget.onReviewSubmitted?.call(
+      _stars,
+      _reviewTypes[_selectedType],
+      _controller.text.trim(),
+    );
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const ChemistryReportScreen()),
     );

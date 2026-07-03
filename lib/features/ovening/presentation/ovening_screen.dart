@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../data/models/demo_models.dart';
+import '../../../data/models/event_flow_models.dart';
 import '../../../shared/providers/app_scope.dart';
 import '../../../shared/providers/demo_flow_provider.dart';
 import '../../report/presentation/chemistry_report_screen.dart';
@@ -208,7 +209,13 @@ class _OpenWaitingStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedClass = flow.selectedClass;
-    final profile = AppScope.of(context).repository.fetchParticipantProfile();
+    // 라이브면 participants/{uid} 의 회차 닉네임, 아니면 데모 프로필.
+    final profile = flow.participantProfile;
+    final dateValue = [
+      selectedClass.dateText,
+      selectedClass.timeText,
+    ].where((text) => text.isNotEmpty).join('\n');
+    final placeValue = selectedClass.place;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,13 +264,13 @@ class _OpenWaitingStage extends StatelessWidget {
               _DetailRow(
                 icon: Icons.calendar_today_outlined,
                 label: '일시',
-                value: '2026. 6. 14 (토) 오후\n2:00',
+                value: dateValue.isNotEmpty ? dateValue : '2026. 6. 14 (토) 오후\n2:00',
               ),
               const Divider(height: 1, color: AppColors.line),
-              const _DetailRow(
+              _DetailRow(
                 icon: Icons.place_outlined,
                 label: '장소',
-                value: '성수 베이킹 스튜디오\n1F',
+                value: placeValue.isNotEmpty ? placeValue : '성수 베이킹 스튜디오\n1F',
               ),
             ],
           ),
@@ -300,11 +307,11 @@ class _VotingStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appState = AppScope.of(context);
     final phase = flow.currentChoicePhase ?? ChoicePhase.firstImpression;
-    final candidates = _displayCandidates(
-      appState.repository.fetchChoiceCandidates(),
-    );
+    // 라이브면 participants 로스터 그대로, 데모면 시연용 4인 구성으로 가공.
+    final candidates = flow.isLive
+        ? flow.choiceCandidates
+        : _displayCandidates(flow.choiceCandidates);
     final selected = flow.selectedChoiceFor(phase);
 
     return Column(
@@ -911,6 +918,23 @@ class _OveningProfile {
   final List<String> good;
 }
 
+/// 라이브 참가자 문서(participants/{uid}.profile) → 로테이션 프로필 카드 변환.
+_OveningProfile _profileFromParticipant(EventParticipant participant) {
+  return _OveningProfile(
+    nickname: participant.nickname,
+    mark: participant.displayMark,
+    age: participant.age ?? 0,
+    job: participant.job,
+    region: participant.region,
+    intro: participant.intro,
+    taste: participant.taste,
+    dessert: participant.dessert,
+    drink: participant.drink,
+    smoke: participant.smoke,
+    good: participant.good,
+  );
+}
+
 const Map<String, _OveningProfile> _oveningProfiles = {
   '소금빵': _OveningProfile(
     nickname: '소금빵',
@@ -960,11 +984,17 @@ class _RotationStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final names = _oveningProfiles.keys.toList();
-    final selected = _oveningProfiles.containsKey(flow.rotationSelection)
+    // 라이브면 participants 로스터로 프로필 카드를 구성, 아니면 데모 프로필.
+    final liveProfiles = <String, _OveningProfile>{
+      for (final participant in flow.rotationProfiles)
+        participant.nickname: _profileFromParticipant(participant),
+    };
+    final profiles = liveProfiles.isNotEmpty ? liveProfiles : _oveningProfiles;
+    final names = profiles.keys.toList();
+    final selected = profiles.containsKey(flow.rotationSelection)
         ? flow.rotationSelection
         : names.first;
-    final profile = _oveningProfiles[selected]!;
+    final profile = profiles[selected]!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1380,6 +1410,15 @@ class _SeatReadyStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 라이브면 seating/{tableId} 좌석도, 아니면 데모 좌석.
+    final myNickname = flow.participantProfile.nickname;
+    final tableLabel = flow.myTable?.tableId ?? 'B 테이블';
+    final pairName = flow.myPairSeat?.nickname ?? '소금빵';
+    final opposites = flow.myOppositeSeats;
+    final oppositeLeft = opposites.isNotEmpty ? opposites.first.nickname : '마들렌';
+    final oppositeRight = opposites.length > 1 ? opposites[1].nickname : '크렘브륄레';
+    final myMark = myNickname.isNotEmpty ? myNickname[0] : '티';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1432,9 +1471,9 @@ class _SeatReadyStage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'B 테이블',
-                style: TextStyle(
+              Text(
+                tableLabel,
+                style: const TextStyle(
                   color: AppColors.wine,
                   fontSize: 34,
                   fontWeight: FontWeight.w500,
@@ -1443,7 +1482,7 @@ class _SeatReadyStage extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '4명이 함께 앉아요 · 내 옆자리 페어는 소금빵',
+                '4명이 함께 앉아요 · 내 옆자리 페어는 $pairName',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.wine,
                 ),
@@ -1467,10 +1506,10 @@ class _SeatReadyStage extends StatelessWidget {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    _SeatSpot(label: '맞은편', name: '마들렌'),
-                    SizedBox(width: 40),
-                    _SeatSpot(label: '맞은편', name: '크렘브륄레'),
+                  children: [
+                    _SeatSpot(label: '맞은편', name: oppositeLeft),
+                    const SizedBox(width: 40),
+                    _SeatSpot(label: '맞은편', name: oppositeRight),
                   ],
                 ),
                 Container(
@@ -1484,7 +1523,7 @@ class _SeatReadyStage extends StatelessWidget {
                     border: Border.all(color: AppColors.mutedText, width: 1.5),
                   ),
                   child: Text(
-                    'B 테이블',
+                    tableLabel,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.mutedText,
                       letterSpacing: 1,
@@ -1493,10 +1532,10 @@ class _SeatReadyStage extends StatelessWidget {
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    _SeatSpot(label: '내 자리', name: '티', mine: true),
-                    SizedBox(width: 40),
-                    _SeatSpot(label: '옆자리 페어', name: '소금빵', pair: true),
+                  children: [
+                    _SeatSpot(label: '내 자리', name: myMark, mine: true),
+                    const SizedBox(width: 40),
+                    _SeatSpot(label: '옆자리 페어', name: pairName, pair: true),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -1762,7 +1801,13 @@ class _PairBakingStage extends StatelessWidget {
           ).textTheme.bodySmall?.copyWith(color: AppColors.cocoa, height: 1.55),
         ),
         const SizedBox(height: 22),
-        AppCard(
+        Builder(builder: (context) {
+          // 라이브면 내 닉네임 + 좌석 페어, 아니면 데모 페어.
+          final me = flow.isLive && flow.participantProfile.nickname.isNotEmpty
+              ? flow.participantProfile.nickname
+              : '티라미수';
+          final pair = flow.myPairSeat?.nickname ?? '소금빵';
+          return AppCard(
           color: AppColors.wine,
           borderColor: AppColors.wine,
           padding: const EdgeInsets.all(18),
@@ -1779,19 +1824,19 @@ class _PairBakingStage extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Row(
-                children: const [
-                  _ResultAvatar(label: 'T'),
-                  Padding(
+                children: [
+                  _ResultAvatar(label: me[0]),
+                  const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Icon(Icons.close_rounded, color: AppColors.butter),
                   ),
-                  _ResultAvatar(label: '소'),
+                  _ResultAvatar(label: pair.isNotEmpty ? pair[0] : '소'),
                 ],
               ),
               const SizedBox(height: 16),
-              const Text(
-                '티라미수 × 소금빵',
-                style: TextStyle(
+              Text(
+                '$me × $pair',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -1804,7 +1849,8 @@ class _PairBakingStage extends StatelessWidget {
               ),
             ],
           ),
-        ),
+          );
+        }),
         const SizedBox(height: 18),
         const _SectionLabel('베이킹 체크리스트'),
         const SizedBox(height: 10),
@@ -1853,10 +1899,26 @@ class _MatchResultStageState extends State<_MatchResultStage> {
   // 편지를 열어야 누가 보냈는지, 매칭 여부를 알 수 있다.
   bool _letterOpened = false;
 
-  // 내가 최종 선택한 사람과 편지 발신자가 같으면 쌍방 매칭.
-  static const String _myPick = '소금빵';
-  static const String _letterFrom = '소금빵';
-  bool get _matched => _myPick == _letterFrom;
+  // 데모 폴백 값. 라이브면 matches 문서(운영자/Functions 산출)를 사용한다.
+  static const String _demoPick = '소금빵';
+  static const String _demoLetterFrom = '소금빵';
+  static const String _demoLetterMessage =
+      '오늘 반죽 치대면서 나눈 대화가 참 편안했어요. 달지 않아도 오래 기억에 남는, 그런 사람 같았어요. 다음엔 천천히 커피 한잔 해요 :)';
+
+  String get _myPick =>
+      widget.flow.selectedChoiceFor(ChoicePhase.finalChoice) ?? _demoPick;
+
+  String get _letterFrom =>
+      widget.flow.matchPartnerNickname ??
+      (widget.flow.isLive ? _myPick : _demoLetterFrom);
+
+  String get _letterMessage {
+    final live = widget.flow.matchPartnerLetter;
+    return (live == null || live.isEmpty) ? _demoLetterMessage : live;
+  }
+
+  bool get _matched =>
+      widget.flow.isLive ? !widget.flow.liveMatchPending : _myPick == _letterFrom;
 
   Future<void> _openLetter() async {
     setState(() => _letterOpened = true);
@@ -1872,6 +1934,11 @@ class _MatchResultStageState extends State<_MatchResultStage> {
   @override
   Widget build(BuildContext context) {
     final flow = widget.flow;
+
+    // 라이브인데 아직 매칭 산출 전이면 집계 중 안내.
+    if (flow.isLive && flow.liveMatchPending) {
+      return _MatchPendingBody(flow: flow);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1896,8 +1963,7 @@ class _MatchResultStageState extends State<_MatchResultStage> {
           opened: _letterOpened,
           from: _letterFrom,
           matched: _matched,
-          message:
-              '오늘 반죽 치대면서 나눈 대화가 참 편안했어요. 달지 않아도 오래 기억에 남는, 그런 사람 같았어요. 다음엔 천천히 커피 한잔 해요 :)',
+          message: _letterMessage,
           onOpen: _openLetter,
         ),
         const SizedBox(height: 22),
@@ -1926,29 +1992,43 @@ class _MatchResultStageState extends State<_MatchResultStage> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    Row(
-                      children: const [
-                        _ResultAvatar(label: 'T'),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Icon(
-                            Icons.favorite_border_rounded,
-                            color: AppColors.butter,
-                            size: 20,
+                    Builder(builder: (context) {
+                      final me =
+                          flow.isLive && flow.participantProfile.nickname.isNotEmpty
+                              ? flow.participantProfile.nickname
+                              : '티라미수';
+                      final partner = _letterFrom;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              _ResultAvatar(label: me[0]),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 12),
+                                child: Icon(
+                                  Icons.favorite_border_rounded,
+                                  color: AppColors.butter,
+                                  size: 20,
+                                ),
+                              ),
+                              _ResultAvatar(
+                                label: partner.isNotEmpty ? partner[0] : 'S',
+                              ),
+                            ],
                           ),
-                        ),
-                        _ResultAvatar(label: 'S'),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      '티라미수↔소금빵',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 23,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                          const SizedBox(height: 18),
+                          Text(
+                            '$me↔$partner',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 23,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
                     const SizedBox(height: 6),
                     const Text(
                       '두 분 모두 서로를 선택했어요.',
@@ -1980,6 +2060,61 @@ class _MatchResultStageState extends State<_MatchResultStage> {
 }
 
 /// 탭하여 여는 편지봉투 → 편지지. 매칭 결과를 전달한다.
+/// 라이브 모드에서 matches 문서가 아직 없을 때(집계 중) 보여주는 대기 화면.
+class _MatchPendingBody extends StatelessWidget {
+  const _MatchPendingBody({required this.flow});
+
+  final DemoFlowProvider flow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _StageBadge(label: 'CHEMISTRY RESULT'),
+        const SizedBox(height: 12),
+        Text(
+          '케미 결과를\n집계하고 있어요.',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: AppColors.burgundy,
+            fontSize: 27,
+            fontWeight: FontWeight.w500,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          '모두의 최종 선택이 모이면 편지로 알려드려요. 잠시만 기다려주세요.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 26),
+        AppCard(
+          color: AppColors.ivory,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.hourglass_top_rounded,
+                color: AppColors.burgundy,
+                size: 34,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '결과가 나오면 이 화면이 자동으로 바뀌어요.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.cocoa,
+                  height: 1.6,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _EnvelopeLetter extends StatelessWidget {
   const _EnvelopeLetter({
     required this.opened,
@@ -2528,7 +2663,9 @@ class _ReportStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final report = AppScope.of(context).repository.fetchReports().first;
+    // 라이브면 reports/{id}(Functions 산출) 리포트, 아니면 데모 리포트.
+    final report =
+        flow.liveReport ?? AppScope.of(context).repository.fetchReports().first;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2583,8 +2720,10 @@ class _ReportStage extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      ReviewGateScreen(onReviewSubmitted: flow.submitReview),
+                  builder: (_) => ReviewGateScreen(
+                    onReviewSubmitted: (stars, type, text) =>
+                        flow.submitReview(stars: stars, type: type, text: text),
+                  ),
                 ),
               );
             },
