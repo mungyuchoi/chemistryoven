@@ -42,6 +42,11 @@ class SessionRepository {
     return doc.exists ? ChemistrySession.fromDoc(doc) : null;
   }
 
+  /// 회차 정보 수정 — 전달한 필드만 merge (createdAt/eventStage 등 보존).
+  Future<void> updateSession(String id, Map<String, dynamic> fields) {
+    return _col.doc(id).set(fields, SetOptions(merge: true));
+  }
+
   /// 회차 상태 변경(예: 'closed', 'confirmed').
   Future<void> updateStatus(String id, String status) {
     return _col.doc(id).set({'status': status}, SetOptions(merge: true));

@@ -531,8 +531,11 @@ class _ApplicationStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final flow = AppScope.of(context).flowProvider;
+    final appState = AppScope.of(context);
+    final flow = appState.flowProvider;
     final selectedClass = flow.selectedClass;
+    // 상태 진행은 운영자 전용 — 일반 사용자는 Firestore 상태(운영자 변경)만 표시.
+    final isAdmin = appState.currentUserController.profile?.isAdmin ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -590,13 +593,17 @@ class _ApplicationStatusCard extends StatelessWidget {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: flow.advance,
-                      child: const Text('다음 상태'),
+                  // '다음 상태'는 운영자 전용. 일반 사용자는 운영자가
+                  // 신청 상태(applications.status)를 바꿔야 다음 단계로 넘어간다.
+                  if (isAdmin) ...[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: flow.advance,
+                        child: const Text('다음 상태 (운영자)'),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: onOpenOvening,
@@ -609,6 +616,16 @@ class _ApplicationStatusCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (!isAdmin) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '진행 상태는 운영진 확인 후 자동으로 업데이트돼요.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.mutedText,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

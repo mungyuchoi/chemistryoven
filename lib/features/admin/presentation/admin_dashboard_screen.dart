@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/app_card.dart';
@@ -56,13 +59,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _womenCount = 4;
   bool _rememberAdminLogin = true;
 
-  // 회차 생성 폼 입력
+  // 회차 생성/편집 폼 입력
   final TextEditingController _sessionTitleCtrl = TextEditingController();
-  final TextEditingController _sessionDateCtrl = TextEditingController();
-  final TextEditingController _sessionTimeCtrl = TextEditingController();
   final TextEditingController _sessionPlaceCtrl = TextEditingController();
   final TextEditingController _sessionPriceCtrl = TextEditingController();
   final TextEditingController _sessionMenuCtrl = TextEditingController();
+  DateTime? _sessionDate;
+  TimeOfDay? _sessionStartTime;
+  TimeOfDay? _sessionEndTime;
+  XFile? _pendingCover; // 게시/저장 시 업로드할 커버 이미지
+  String? _editingSessionId; // null 이면 새 회차, 있으면 편집 모드
+  String _editingTimeText = ''; // 편집 시 기존 시간 문구 보존
+  String? _editingCoverUrl; // 편집 시 기존 커버
   bool _publishingSession = false;
   String? _selectedSessionId;
   bool _closingSession = false;
@@ -505,8 +513,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void dispose() {
     _sessionTitleCtrl.dispose();
-    _sessionDateCtrl.dispose();
-    _sessionTimeCtrl.dispose();
     _sessionPlaceCtrl.dispose();
     _sessionPriceCtrl.dispose();
     _sessionMenuCtrl.dispose();
@@ -533,7 +539,145 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   /// 회차 게시 → Firestore sessions 에 생성.
   /// [status] 가 'draft' 면 임시저장, 기본은 모집중('recruiting').
-  Future<void> _publishSession({String status = 'recruiting'}) async {
+  // ── 회차 폼: 날짜/시간/커버 선택 ──────────────────────────────
+
+  String get _sessionDateText {
+    final date = _sessionDate;
+    if (date == null) return '';
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
+  static String _formatTimeOfDay(TimeOfDay time) {
+    final period = time.period == DayPeriod.am ? '오전' : '오후';
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$period $hour:$minute';
+  }
+
+  /// 시작~끝 시간 문구. 피커 미사용(편집 진입 직후)이면 기존 문구 유지.
+  String get _sessionTimeText {
+    final start = _sessionStartTime;
+    if (start == null) return _editingTimeText;
+    final end = _sessionEndTime;
+    final startText = _formatTimeOfDay(start);
+    return end == null ? startText : '$startText ~ ${_formatTimeOfDay(end)}';
+  }
+
+  Future<void> _pickSessionDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _sessionDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (picked != null && mounted) {
+      setState(() => _sessionDate = picked);
+    }
+  }
+
+  Future<void> _pickSessionTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: (isStart ? _sessionStartTime : _sessionEndTime) ??
+          const TimeOfDay(hour: 14, minute: 0),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (isStart) {
+        _sessionStartTime = picked;
+      } else {
+        _sessionEndTime = picked;
+      }
+    });
+  }
+
+  /// 세션 커버 선택 — 갤러리/카메라 바텀시트.
+  Future<void> _pickSessionCoverImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('갤러리에서 선택'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final file = await StorageService.instance.pickImageFrom(source);
+      if (file != null && mounted) {
+        setState(() => _pendingCover = file);
+      }
+    } catch (e) {
+      debugPrint('[cover-pick] $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미지를 불러오지 못했어요')),
+        );
+      }
+    }
+  }
+
+  /// 회차 편집 진입 — 기존 값 프리필.
+  void _openSessionEditor(ChemistrySession session) {
+    _sessionTitleCtrl.text = session.title;
+    _sessionPlaceCtrl.text = session.location;
+    _sessionPriceCtrl.text = session.priceText;
+    _sessionMenuCtrl.text = session.menuName;
+    final match = RegExp(r'(\d{4})-(\d{1,2})-(\d{1,2})')
+        .firstMatch(session.dateText);
+    setState(() {
+      _editingSessionId = session.id;
+      _editingTimeText = session.timeText;
+      _editingCoverUrl = session.keyVisualUrl;
+      _sessionDate = match == null
+          ? null
+          : DateTime(
+              int.parse(match.group(1)!),
+              int.parse(match.group(2)!),
+              int.parse(match.group(3)!),
+            );
+      _sessionStartTime = null;
+      _sessionEndTime = null;
+      _pendingCover = null;
+      _menCount = session.recruitMale;
+      _womenCount = session.recruitFemale;
+    });
+    _go(_AdminScreen.sessionCreate);
+  }
+
+  void _openSessionEditorById(String sessionId, AppState appState) {
+    for (final session in appState.sessionsController.sessions) {
+      if (session.id == sessionId) {
+        _openSessionEditor(session);
+        return;
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('회차 정보를 찾지 못했어요')),
+    );
+  }
+
+  /// 회차 게시/저장. [status] 가 null 이면 편집 모드(상태 유지)로 저장.
+  Future<void> _publishSession({String? status = 'recruiting'}) async {
     final title = _sessionTitleCtrl.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -543,37 +687,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
     setState(() => _publishingSession = true);
     final messenger = ScaffoldMessenger.of(context);
+    final editingId = _editingSessionId;
+    final isEdit = editingId != null;
     final isDraft = status == 'draft';
     try {
-      final session = ChemistrySession(
-        id: '',
-        title: title,
-        dateText: _sessionDateCtrl.text.trim(),
-        timeText: _sessionTimeCtrl.text.trim(),
-        location: _sessionPlaceCtrl.text.trim(),
-        priceText: _sessionPriceCtrl.text.trim(),
-        recruitMale: _menCount,
-        recruitFemale: _womenCount,
-        menuName: _sessionMenuCtrl.text.trim(),
-        status: status,
-        createdBy: FirebaseService.instance.uid,
-      );
-      await SessionRepository.instance.createSession(session);
+      String sessionId;
+      if (isEdit) {
+        await SessionRepository.instance.updateSession(editingId, {
+          'title': title,
+          // 비어 있으면 기존 값 유지 (merge)
+          if (_sessionDateText.isNotEmpty) 'dateText': _sessionDateText,
+          if (_sessionTimeText.isNotEmpty) 'timeText': _sessionTimeText,
+          'location': _sessionPlaceCtrl.text.trim(),
+          'priceText': _sessionPriceCtrl.text.trim(),
+          'recruit': {'male': _menCount, 'female': _womenCount},
+          'menuName': _sessionMenuCtrl.text.trim(),
+          if (status != null) 'status': status,
+        });
+        sessionId = editingId;
+      } else {
+        final session = ChemistrySession(
+          id: '',
+          title: title,
+          dateText: _sessionDateText,
+          timeText: _sessionTimeText,
+          location: _sessionPlaceCtrl.text.trim(),
+          priceText: _sessionPriceCtrl.text.trim(),
+          recruitMale: _menCount,
+          recruitFemale: _womenCount,
+          menuName: _sessionMenuCtrl.text.trim(),
+          status: status ?? 'recruiting',
+          createdBy: FirebaseService.instance.uid,
+        );
+        sessionId = await SessionRepository.instance.createSession(session);
+      }
+
+      // 커버 이미지가 선택돼 있으면 업로드 후 URL 저장.
+      final cover = _pendingCover;
+      if (cover != null) {
+        final url = await StorageService.instance.uploadSessionCover(
+          sessionId,
+          cover,
+        );
+        await SessionRepository.instance.updateCover(sessionId, url);
+      }
+
       if (!mounted) return;
       _clearSessionForm();
       messenger.showSnackBar(
-        SnackBar(content: Text(isDraft ? '임시저장했어요' : '회차가 게시됐어요')),
+        SnackBar(
+          content: Text(
+            isEdit ? '변경사항을 저장했어요' : (isDraft ? '임시저장했어요' : '회차가 게시됐어요'),
+          ),
+        ),
       );
       _go(_AdminScreen.sessions);
     } catch (error) {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            isDraft ? '임시저장에 실패했어요. 잠시 후 다시 시도해 주세요' : '게시에 실패했어요. 운영자 권한을 확인해 주세요',
+            isEdit
+                ? '저장에 실패했어요. 잠시 후 다시 시도해 주세요'
+                : (isDraft
+                    ? '임시저장에 실패했어요. 잠시 후 다시 시도해 주세요'
+                    : '게시에 실패했어요. 운영자 권한을 확인해 주세요'),
           ),
         ),
       );
-      debugPrint('[session-create] $error');
+      debugPrint('[session-save] $error');
     } finally {
       if (mounted) {
         setState(() => _publishingSession = false);
@@ -660,11 +841,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _clearSessionForm() {
     _sessionTitleCtrl.clear();
-    _sessionDateCtrl.clear();
-    _sessionTimeCtrl.clear();
     _sessionPlaceCtrl.clear();
     _sessionPriceCtrl.clear();
     _sessionMenuCtrl.clear();
+    _sessionDate = null;
+    _sessionStartTime = null;
+    _sessionEndTime = null;
+    _pendingCover = null;
+    _editingSessionId = null;
+    _editingTimeText = '';
+    _editingCoverUrl = null;
   }
 
 
@@ -1053,6 +1239,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 setState(() => _selectedSessionId = classes[i].id);
                 _go(_AdminScreen.sessionDetail);
               },
+              onEdit: () {
+                setState(() => _selectedSessionId = classes[i].id);
+                _openSessionEditorById(classes[i].id, AppScope.of(context));
+              },
             ),
             if (i != classes.length - 1) const SizedBox(height: 12),
           ],
@@ -1069,6 +1259,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           subtitle: classData.statusLabel,
           onBack: () => _go(_AdminScreen.sessions),
           actionIcon: Icons.edit_outlined,
+          onAction: () =>
+              _openSessionEditorById(classData.id, AppScope.of(context)),
         ),
         const SizedBox(height: 14),
         InkWell(
@@ -1198,30 +1390,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildSessionCreate(BuildContext context) {
+    final isEdit = _editingSessionId != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AdminTopBar(
-          title: '새 회차 만들기',
-          subtitle: '9기',
-          onBack: () => _go(_AdminScreen.sessions),
-          actionIcon: Icons.notifications_none_rounded,
+          title: isEdit ? '회차 편집' : '새 회차 만들기',
+          subtitle: isEdit ? _sessionTitleCtrl.text : '새 회차',
+          onBack: () {
+            _clearSessionForm();
+            _go(_AdminScreen.sessions);
+          },
         ),
         const SizedBox(height: 20),
         const _TinyEyebrow('01  기본 정보'),
         const SizedBox(height: 10),
         _AdminInput(label: '회차 (예: 케미스트리오븐 9기)', controller: _sessionTitleCtrl),
         const SizedBox(height: 10),
-        _AdminInput(
-          label: '일시 (예: 2026-07-12)',
+        _PickerField(
+          label: '날짜',
           icon: Icons.calendar_month_outlined,
-          controller: _sessionDateCtrl,
+          value: _sessionDateText.isEmpty ? null : _sessionDateText,
+          placeholder: '날짜 선택',
+          onTap: _pickSessionDate,
         ),
         const SizedBox(height: 10),
-        _AdminInput(
-          label: '시간 (예: 오후 2시)',
-          icon: Icons.access_time_outlined,
-          controller: _sessionTimeCtrl,
+        Row(
+          children: [
+            Expanded(
+              child: _PickerField(
+                label: '시작 시간',
+                icon: Icons.access_time_outlined,
+                value: _sessionStartTime == null
+                    ? null
+                    : _formatTimeOfDay(_sessionStartTime!),
+                placeholder: _editingTimeText.isEmpty ? '시작 시간' : _editingTimeText,
+                onTap: () => _pickSessionTime(isStart: true),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PickerField(
+                label: '끝 시간',
+                icon: Icons.access_time_filled_outlined,
+                value: _sessionEndTime == null
+                    ? null
+                    : _formatTimeOfDay(_sessionEndTime!),
+                placeholder: '끝 시간',
+                onTap: () => _pickSessionTime(isStart: false),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         _AdminInput(
@@ -1280,68 +1499,126 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           labels: ['알레르기 견과 함유', '글루텐 함유', '계란 함유', '유제품 함유'],
         ),
         const SizedBox(height: 20),
-        const _TinyEyebrow('04  제품 사진 업로드 · 회차 카드 · 상세 노출'),
+        const _TinyEyebrow('04  세션 커버 · 회차 카드 · 상세 노출'),
         const SizedBox(height: 10),
-        AppCard(
-          color: AppColors.parchment,
-          borderColor: AppColors.rose,
-          padding: const EdgeInsets.all(14),
-          child: SizedBox(
-            height: 124,
-            child: Stack(
-              children: [
-                const Center(
-                  child: _AdminChip(label: 'SESSION COVER', selected: false),
-                ),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
+        InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: _pickSessionCoverImage,
+          child: AppCard(
+            color: AppColors.parchment,
+            borderColor: AppColors.rose,
+            padding: const EdgeInsets.all(14),
+            child: SizedBox(
+              height: 124,
+              child: Stack(
+                children: [
+                  if (_pendingCover != null)
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          File(_pendingCover!.path),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else if (_editingCoverUrl != null)
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          _editingCoverUrl!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else
+                    const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_a_photo_outlined,
+                            color: AppColors.burgundy,
+                          ),
+                          SizedBox(height: 8),
+                          _AdminChip(label: 'SESSION COVER', selected: false),
+                        ],
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.burgundy,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Text(
-                      '대표',
-                      style: TextStyle(color: Colors.white, fontSize: 11),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.burgundy,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _pendingCover != null
+                            ? '변경됨'
+                            : (_editingCoverUrl != null ? '기존 커버' : '탭하여 업로드'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _WideButton(
-                label: '임시저장',
-                muted: true,
-                onTap: () {
-                  if (!_publishingSession) {
-                    _publishSession(status: 'draft');
-                  }
-                },
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _WideButton(
-                label: _publishingSession ? '게시 중...' : '회차 게시',
-                onTap: () {
-                  if (!_publishingSession) {
-                    _publishSession(status: 'recruiting');
-                  }
-                },
-              ),
-            ),
-          ],
+        const SizedBox(height: 6),
+        Text(
+          '탭하면 갤러리 또는 카메라에서 커버 이미지를 선택할 수 있어요.',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: AppColors.mutedText, fontSize: 11),
         ),
+        const SizedBox(height: 16),
+        if (isEdit)
+          _WideButton(
+            label: _publishingSession ? '저장 중...' : '변경사항 저장',
+            onTap: () {
+              if (!_publishingSession) {
+                _publishSession(status: null);
+              }
+            },
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: _WideButton(
+                  label: '임시저장',
+                  muted: true,
+                  onTap: () {
+                    if (!_publishingSession) {
+                      _publishSession(status: 'draft');
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _WideButton(
+                  label: _publishingSession ? '게시 중...' : '회차 게시',
+                  onTap: () {
+                    if (!_publishingSession) {
+                      _publishSession(status: 'recruiting');
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -2817,6 +3094,7 @@ class _AdminTopBar extends StatelessWidget {
     required this.onBack,
     this.actionIcon,
     this.actionText,
+    this.onAction,
   });
 
   final String title;
@@ -2824,6 +3102,7 @@ class _AdminTopBar extends StatelessWidget {
   final VoidCallback onBack;
   final IconData? actionIcon;
   final String? actionText;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -2866,7 +3145,7 @@ class _AdminTopBar extends StatelessWidget {
             ),
           )
         else if (actionIcon != null)
-          _SquareIconButton(icon: actionIcon!, onTap: () {}),
+          _SquareIconButton(icon: actionIcon!, onTap: onAction ?? () {}),
       ],
     );
   }
@@ -3177,6 +3456,66 @@ class _HorizontalSelectableChipStrip extends StatelessWidget {
             if (i != labels.length - 1) const SizedBox(width: 8),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// 탭하면 피커(캘린더/시간 등)가 열리는 읽기 전용 입력 필드.
+class _PickerField extends StatelessWidget {
+  const _PickerField({
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.value,
+    this.placeholder,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final String? value; // 선택된 값 (없으면 placeholder 표시)
+  final String? placeholder;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasValue = value != null && value!.isNotEmpty;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 50),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 17, color: AppColors.burgundy),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Text(
+                hasValue ? value! : (placeholder ?? label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: hasValue ? AppColors.cocoa : AppColors.mutedText,
+                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.expand_more_rounded,
+              size: 18,
+              color: AppColors.mutedText,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3654,6 +3993,7 @@ class _SessionListCard extends StatelessWidget {
     required this.classData,
     required this.status,
     required this.onTap,
+    this.onEdit,
     this.active = false,
     this.empty = false,
   });
@@ -3662,6 +4002,7 @@ class _SessionListCard extends StatelessWidget {
   final ChemistryClass classData;
   final String status;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
   final bool active;
   final bool empty;
 
@@ -3755,6 +4096,13 @@ class _SessionListCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onEdit != null) ...[
+                  const SizedBox(width: 8),
+                  _SquareIconButton(
+                    icon: Icons.edit_outlined,
+                    onTap: onEdit!,
+                  ),
+                ],
               ],
             ),
           ),

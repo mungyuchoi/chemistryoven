@@ -208,9 +208,15 @@ class _OpenWaitingStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appState = AppScope.of(context);
     final selectedClass = flow.selectedClass;
     // 라이브면 participants/{uid} 의 회차 닉네임, 아니면 데모 프로필.
     final profile = flow.participantProfile;
+    // 라이브 모드에서 단계 진행은 운영자 전용 — 일반 사용자는
+    // 운영자가 신청 상태/eventStage 를 바꿔야 자동으로 넘어간다.
+    final isAdmin =
+        appState.currentUserController.profile?.isAdmin ?? false;
+    final canAdvance = !flow.isLive || isAdmin;
     final dateValue = [
       selectedClass.dateText,
       selectedClass.timeText,
@@ -288,13 +294,24 @@ class _OpenWaitingStage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: flow.advance,
-            child: Text(flow.currentStep.primaryActionLabel),
+        if (canAdvance)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: flow.advance,
+              child: Text(flow.currentStep.primaryActionLabel),
+            ),
+          )
+        else
+          Center(
+            child: Text(
+              '진행 상태는 운영진 확인 후 자동으로 업데이트돼요.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+              ),
+            ),
           ),
-        ),
       ],
     );
   }

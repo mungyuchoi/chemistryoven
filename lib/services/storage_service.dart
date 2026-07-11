@@ -15,9 +15,12 @@ class StorageService {
   final ImagePicker _picker = ImagePicker();
 
   /// 갤러리에서 사진 1장 선택. 취소 시 null.
-  Future<XFile?> pickImage() {
+  Future<XFile?> pickImage() => pickImageFrom(ImageSource.gallery);
+
+  /// 갤러리/카메라 지정 선택. 취소 시 null.
+  Future<XFile?> pickImageFrom(ImageSource source) {
     return _picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 2048,
       imageQuality: 90,
     );
