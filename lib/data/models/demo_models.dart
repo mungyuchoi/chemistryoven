@@ -577,7 +577,7 @@ extension OnboardingStepX on OnboardingStep {
       case OnboardingStep.intro:
         return '몇 가지 질문으로 나의 성향과 잘 맞는 오브닝을 추천해드려요.';
       case OnboardingStep.account:
-        return '휴대폰 인증과 로그인 정보를 먼저 준비해요.';
+        return '전화번호와 이름을 먼저 입력해요.';
       case OnboardingStep.basicInfo:
         return '정확한 회차 추천과 인원 구성에 사용돼요.';
       case OnboardingStep.rhythm:

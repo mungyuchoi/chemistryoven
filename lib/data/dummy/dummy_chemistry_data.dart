@@ -545,7 +545,7 @@ const demoCharacters = <ChemistryCharacter>[
 ];
 
 const demoOnboardingChoices = <OnboardingStep, List<String>>{
-  OnboardingStep.account: ['휴대폰 인증 완료', '이메일 로그인', '카카오 알림톡 동의', '마케팅 알림 선택'],
+  OnboardingStep.account: [],
   OnboardingStep.basicInfo: ['남성', '여성', '서울 강남권', '서울 강북권', '경기 서부', '인천'],
   OnboardingStep.rhythm: [
     'IT/개발',

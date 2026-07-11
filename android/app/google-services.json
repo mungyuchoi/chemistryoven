@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "858970238995-fugnklp688lhusn4sjlopvkgsohs52tf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mungyu.chemistryoven",
+            "certificate_hash": "0106a8fe7abddc681a67d771c5a3edd133c997a6"
+          }
+        },
+        {
           "client_id": "858970238995-plom57i858b07i7ttqo6ofbg92d8p8na.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

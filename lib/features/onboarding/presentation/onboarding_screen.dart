@@ -32,7 +32,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   RangeValues _ageRange = const RangeValues(30, 36);
   RangeValues _heightRange = const RangeValues(175, 188);
   final Map<OnboardingStep, Set<String>> _selected = {
-    OnboardingStep.account: {'카카오 알림톡 동의', '마케팅 알림 선택'},
+    OnboardingStep.account: <String>{},
     OnboardingStep.basicInfo: {'남성', '서울 강남권'},
     OnboardingStep.rhythm: {'IT/개발', '평일 주간', '토요일 오후', '일요일 오후'},
     OnboardingStep.conversation: {
@@ -59,25 +59,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingStep.profilePreview: {'공개 프로필 확인', 'AI 문장 보정 완료', '운영진 확인 정보 분리'},
   };
 
-  // 기본 정보 입력값 (아이디/이름/키/생년월일).
-  final TextEditingController _handleCtrl = TextEditingController();
-  final TextEditingController _nameCtrl = TextEditingController(text: '신청자 A');
+  // 기본 정보 입력값 (전화번호/이름/키/생년월일).
+  final TextEditingController _phoneCtrl = TextEditingController();
+  final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _heightCtrl = TextEditingController(text: '164');
   String _birth = '1995-04-18';
 
-  // STEP 1 아이디 중복확인 상태 (true=사용 가능으로 확인됨).
-  bool _handleAvailable = false;
-
   @override
   void dispose() {
-    _handleCtrl.dispose();
+    _phoneCtrl.dispose();
     _nameCtrl.dispose();
     _heightCtrl.dispose();
     super.dispose();
-  }
-
-  void _onHandleAvailabilityChanged(bool available) {
-    _handleAvailable = available;
   }
 
   void _onBirthChanged(String birth) {
@@ -176,8 +169,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     setState(() => _ageRange = values),
                 onHeightRangeChanged: (values) =>
                     setState(() => _heightRange = values),
-                handleController: _handleCtrl,
-                onHandleAvailabilityChanged: _onHandleAvailabilityChanged,
+                phoneController: _phoneCtrl,
                 nameController: _nameCtrl,
                 heightController: _heightCtrl,
                 initialBirth: _birth,
@@ -204,9 +196,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: _isLastStep
-                          ? () => _finish()
-                          : () => setState(() => _index += 1),
+                      onPressed: _isLastStep ? () => _finish() : _goNext,
                       icon: Icon(_primaryButtonIcon),
                       label: Text(_primaryButtonLabel),
                     ),
@@ -434,6 +424,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
+  void _goNext() {
+    if (_step == OnboardingStep.account) {
+      final phone = _phoneCtrl.text.trim();
+      if (!RegExp(r'^010-\d{4}-\d{4}$').hasMatch(phone)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('전화번호를 010-1234-5678 형식으로 입력해주세요.')),
+        );
+        return;
+      }
+    }
+    setState(() => _index += 1);
+  }
+
   void _finish({MainTab? targetTab}) {
     final appState = AppScope.of(context);
     // 온보딩 결과를 Firestore에 저장 (로그인 상태일 때만, 비차단)
@@ -469,34 +472,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       characters: appState.repository.fetchCharacters(),
     );
 
-    // 기본 정보(이름/키/생년월일/아이디) 저장 (비차단, 로그인 시에만).
+    // 기본 정보(전화번호/이름/키/생년월일) 저장 (비차단, 로그인 시에만).
     final uid = FirebaseService.instance.uid;
     if (uid != null) {
-      // 중복확인까지 통과한 유효한 아이디만 저장.
-      final handle = _handleCtrl.text.trim();
-      final hasHandle = _handleAvailable &&
-          RegExp(r'^[A-Za-z0-9_]{4,12}$').hasMatch(handle);
-
       UserService.instance
           .updateBasicInfo(
             uid: uid,
             name: _nameCtrl.text.trim(),
+            phone: _phoneCtrl.text.trim(),
             birth: _birth,
             height: int.tryParse(_heightCtrl.text.trim()),
-            handle: hasHandle ? handle : null,
           )
           .catchError((Object error) {
             debugPrint('[onboarding] 기본 정보 저장 실패: $error');
           });
 
-      // 아이디 소유권 클레임 (handles/{handle} = {uid}).
-      if (hasHandle) {
-        FirebaseService.instance.handles
-            .doc(handle)
-            .set(<String, dynamic>{'uid': uid}).catchError((Object error) {
-          debugPrint('[onboarding] 아이디 클레임 실패: $error');
-        });
-      }
     }
 
     // 비동기 저장 (실패해도 흐름은 진행). 저장 후 사용자 프로필 재로드.
@@ -573,353 +563,60 @@ class _IntroStep extends StatelessWidget {
 
 class _AccountStep extends StatefulWidget {
   const _AccountStep({
-    required this.selected,
-    required this.onToggle,
-    required this.handleController,
-    required this.onHandleAvailabilityChanged,
+    required this.phoneController,
+    required this.nameController,
   });
 
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-  final TextEditingController handleController;
-  final ValueChanged<bool> onHandleAvailabilityChanged;
+  final TextEditingController phoneController;
+  final TextEditingController nameController;
 
   @override
   State<_AccountStep> createState() => _AccountStepState();
 }
 
 class _AccountStepState extends State<_AccountStep> {
-  static final RegExp _handlePattern = RegExp(r'^[A-Za-z0-9_]{4,12}$');
-
-  bool _verifying = false;
-  bool _checking = false;
-  bool _handleAvailable = false;
-  String? _handleMsg;
-  // 인증 직후 표시할 닉네임 (프로필 재로드 전에도 즉시 반영).
-  String? _verifiedNickname;
-
-  bool _isKakaoVerified(AppState appState) {
-    final profile = appState.currentUserController.profile;
-    if (profile == null) {
-      return false;
-    }
-    return profile.provider == 'kakao' || profile.kakaoVerified == true;
-  }
-
-  String _verifiedDisplayName(AppState appState) {
-    final nickname = _verifiedNickname;
-    if (nickname != null && nickname.isNotEmpty) {
-      return nickname;
-    }
-    return appState.currentUserController.profile?.displayName ?? '';
-  }
-
-  Future<void> _verifyKakao() async {
-    if (_verifying) {
-      return;
-    }
-    final messenger = ScaffoldMessenger.of(context);
-    final appState = AppScope.of(context);
-    final uid = FirebaseService.instance.uid;
-    if (uid == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('로그인 후 카카오 인증을 진행할 수 있어요.')),
-      );
-      return;
-    }
-
-    setState(() => _verifying = true);
-    try {
-      final nickname = await AuthService.instance.verifyKakao();
-      if (nickname == null) {
-        return; // 사용자 취소
-      }
-      await appState.currentUserController.load();
-      if (!mounted) {
-        return;
-      }
-      setState(() => _verifiedNickname = nickname);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('카카오 인증이 완료됐어요.')),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      messenger.showSnackBar(
-        SnackBar(content: Text('카카오 인증에 실패했어요: $error')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _verifying = false);
-      }
-    }
-  }
-
-  Future<void> _checkHandle() async {
-    if (_checking) {
-      return;
-    }
-    final handle = widget.handleController.text.trim();
-    if (!_handlePattern.hasMatch(handle)) {
-      setState(() {
-        _handleAvailable = false;
-        _handleMsg = '영문·숫자 4~12자';
-      });
-      widget.onHandleAvailabilityChanged(false);
-      return;
-    }
-
-    setState(() {
-      _checking = true;
-      _handleMsg = null;
-    });
-    try {
-      final doc = await FirebaseService.instance.handles.doc(handle).get();
-      if (!mounted) {
-        return;
-      }
-      final taken = doc.exists;
-      setState(() {
-        _handleAvailable = !taken;
-        _handleMsg = taken ? '이미 사용 중인 아이디예요' : '사용 가능한 아이디예요';
-      });
-      widget.onHandleAvailabilityChanged(!taken);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _handleAvailable = false;
-        _handleMsg = '중복 확인에 실패했어요. 다시 시도해주세요.';
-      });
-      widget.onHandleAvailabilityChanged(false);
-    } finally {
-      if (mounted) {
-        setState(() => _checking = false);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    const accountOptions = ['카카오 알림톡 동의', '마케팅 알림 선택'];
-    final appState = AppScope.of(context);
-    final verified = _isKakaoVerified(appState) || _verifiedNickname != null;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const _FieldLabel('카카오톡 인증'),
-            const Spacer(),
-            Text(
-              '간편 본인 인증',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.mutedText,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (verified)
-          AppCard(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEE500),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.chat_bubble,
-                    color: Color(0xFF191600),
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '카카오 인증 완료',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.cocoa,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _verifiedDisplayName(appState),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.mutedText,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Text(
-                    '완료',
-                    style: TextStyle(
-                      color: AppColors.success,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          SizedBox(
-            width: double.infinity,
-            child: Material(
-              color: const Color(0xFFFEE500),
-              borderRadius: BorderRadius.circular(10),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: _verifying ? null : _verifyKakao,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_verifying)
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(
-                              Color(0xFF191600),
-                            ),
-                          ),
-                        )
-                      else
-                        const Icon(
-                          Icons.chat_bubble,
-                          color: Color(0xFF191600),
-                          size: 20,
-                        ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _verifying ? '인증 중...' : '카카오톡으로 인증하기',
-                        style: const TextStyle(
-                          color: Color(0xFF191600),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        const SizedBox(height: 22),
-        Row(
-          children: [
-            const _FieldLabel('앱에서 쓸 아이디'),
-            const Spacer(),
-            Text(
-              '영문·숫자 4~12자',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.mutedText,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
+        const _FieldLabel('전화번호'),
         const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: widget.handleController,
-                textInputAction: TextInputAction.done,
-                onChanged: (_) {
-                  if (_handleAvailable || _handleMsg != null) {
-                    setState(() {
-                      _handleAvailable = false;
-                      _handleMsg = null;
-                    });
-                    widget.onHandleAvailabilityChanged(false);
-                  }
-                },
-                style: const TextStyle(
-                  color: AppColors.cocoa,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w400,
-                ),
-                decoration: const InputDecoration(hintText: '예: jiyoon_95'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              height: 52,
-              child: OutlinedButton(
-                onPressed: _checking ? null : _checkHandle,
-                child: _checking
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('중복확인'),
-              ),
-            ),
-          ],
-        ),
-        if (_handleMsg != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            _handleMsg!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: _handleAvailable ? AppColors.success : AppColors.brandRed,
-              fontWeight: FontWeight.w700,
-            ),
+        TextField(
+          controller: widget.phoneController,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+          maxLength: 13,
+          style: const TextStyle(
+            color: AppColors.cocoa,
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
           ),
-        ],
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final option in accountOptions)
-              _OnboardingPill(
-                selected: widget.selected.contains(option),
-                label: option,
-                onTap: () => widget.onToggle(option),
-              ),
-          ],
+          decoration: const InputDecoration(
+            hintText: '예: 010-1234-5678',
+            counterText: '',
+          ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
+        const _FieldLabel('이름'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: widget.nameController,
+          textInputAction: TextInputAction.done,
+          style: const TextStyle(
+            color: AppColors.cocoa,
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+          ),
+          decoration: const InputDecoration(hintText: '이름을 입력해주세요'),
+        ),
+        const SizedBox(height: 18),
         AppCard(
           color: AppColors.blush.withValues(alpha: 0.72),
           borderColor: AppColors.rose,
           padding: const EdgeInsets.all(14),
           child: Text(
-            '카카오톡 인증은 본인 확인용이에요. 매칭 시 연락처는 최종 매칭된 분에게만 공개돼요.',
+            '전화번호는 010-1234-5678 형식만 확인해요. 입력한 이름은 매칭 준비에 사용돼요.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.cocoa,
               height: 1.55,
@@ -941,8 +638,7 @@ class _QuestionStep extends StatelessWidget {
     required this.heightRange,
     required this.onAgeRangeChanged,
     required this.onHeightRangeChanged,
-    required this.handleController,
-    required this.onHandleAvailabilityChanged,
+    required this.phoneController,
     required this.nameController,
     required this.heightController,
     required this.initialBirth,
@@ -957,8 +653,7 @@ class _QuestionStep extends StatelessWidget {
   final RangeValues heightRange;
   final ValueChanged<RangeValues> onAgeRangeChanged;
   final ValueChanged<RangeValues> onHeightRangeChanged;
-  final TextEditingController handleController;
-  final ValueChanged<bool> onHandleAvailabilityChanged;
+  final TextEditingController phoneController;
   final TextEditingController nameController;
   final TextEditingController heightController;
   final String initialBirth;
@@ -968,17 +663,14 @@ class _QuestionStep extends StatelessWidget {
   Widget build(BuildContext context) {
     if (step == OnboardingStep.account) {
       return _AccountStep(
-        selected: selected,
-        onToggle: (value) => onToggle(step, value),
-        handleController: handleController,
-        onHandleAvailabilityChanged: onHandleAvailabilityChanged,
+        phoneController: phoneController,
+        nameController: nameController,
       );
     }
     if (step == OnboardingStep.basicInfo) {
       return _BasicInfoStep(
         selected: selected,
         onToggle: (value) => onToggle(step, value),
-        nameController: nameController,
         heightController: heightController,
         initialBirth: initialBirth,
         onBirthChanged: onBirthChanged,
@@ -1347,7 +1039,6 @@ class _BasicInfoStep extends StatelessWidget {
   const _BasicInfoStep({
     required this.selected,
     required this.onToggle,
-    required this.nameController,
     required this.heightController,
     required this.initialBirth,
     required this.onBirthChanged,
@@ -1355,7 +1046,6 @@ class _BasicInfoStep extends StatelessWidget {
 
   final Set<String> selected;
   final ValueChanged<String> onToggle;
-  final TextEditingController nameController;
   final TextEditingController heightController;
   final String initialBirth;
   final ValueChanged<String> onBirthChanged;
@@ -1380,19 +1070,6 @@ class _BasicInfoStep extends StatelessWidget {
         const SizedBox(height: 10),
         const _ProfilePhotoRow(),
         const SizedBox(height: 22),
-        const _FieldLabel('이름'),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: nameController,
-          textInputAction: TextInputAction.next,
-          style: const TextStyle(
-            color: AppColors.cocoa,
-            fontSize: 18,
-            fontWeight: FontWeight.w400,
-          ),
-          decoration: const InputDecoration(hintText: '이름을 입력해주세요'),
-        ),
-        const SizedBox(height: 18),
         const _FieldLabel('성별'),
         const SizedBox(height: 8),
         Row(
