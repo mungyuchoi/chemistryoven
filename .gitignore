@@ -50,6 +50,7 @@ app.*.map.json
 **/*service-account*.json
 **/env/prod.json
 **/env/*.local.json
+/env/
 functions/env/
 .env
 .env.*
