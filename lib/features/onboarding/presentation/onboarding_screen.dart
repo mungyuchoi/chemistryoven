@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
@@ -427,9 +428,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _goNext() {
     if (_step == OnboardingStep.account) {
       final phone = _phoneCtrl.text.trim();
-      if (!RegExp(r'^010-\d{4}-\d{4}$').hasMatch(phone)) {
+      if (!RegExp(r'^010\d{8}$').hasMatch(phone)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('전화번호를 010-1234-5678 형식으로 입력해주세요.')),
+          const SnackBar(content: Text('전화번호를 01012345678 형식으로 입력해주세요.')),
         );
         return;
       }
@@ -584,16 +585,17 @@ class _AccountStepState extends State<_AccountStep> {
         const SizedBox(height: 8),
         TextField(
           controller: widget.phoneController,
-          keyboardType: TextInputType.phone,
+          keyboardType: TextInputType.number,
           textInputAction: TextInputAction.next,
-          maxLength: 13,
+          maxLength: 11,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           style: const TextStyle(
             color: AppColors.cocoa,
             fontSize: 17,
             fontWeight: FontWeight.w400,
           ),
           decoration: const InputDecoration(
-            hintText: '예: 010-1234-5678',
+            hintText: '예: 01012345678',
             counterText: '',
           ),
         ),
@@ -616,7 +618,7 @@ class _AccountStepState extends State<_AccountStep> {
           borderColor: AppColors.rose,
           padding: const EdgeInsets.all(14),
           child: Text(
-            '전화번호는 010-1234-5678 형식만 확인해요. 입력한 이름은 매칭 준비에 사용돼요.',
+            '전화번호는 01012345678 형식(하이픈 없이 숫자만)만 확인해요. 입력한 이름은 매칭 준비에 사용돼요.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.cocoa,
               height: 1.55,
